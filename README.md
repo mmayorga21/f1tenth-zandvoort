@@ -50,13 +50,4 @@ Este comando lanza Zandvoort con el vehículo detenido; todavía no constituye u
 
 La integración prevista usa `/scan` para LiDAR, `/drive` para comandos Ackermann y `/ego_racecar/odom` para telemetría. Los comandos del controlador y la explicación detallada del algoritmo se agregarán cuando exista una implementación verificada.
 
-## Plan, resultados y procedencia
 
-- [Tiempo, colisiones y registro de intentos](docs/MEDICION_INTENTOS.md).
-- [Validación de Zandvoort y diagnóstico reproducible](docs/VALIDACION_ZANDVOORT.md).
-- [Plan por etapas y criterios de aceptación](docs/PLAN_PROYECTO.md).
-- [Procedencia del código y de los archivos](docs/PROCEDENCIA.md).
-- [Tutorial original en español](README_es.md).
-- [Tutorial original en inglés](docs/README_BASE_EN.md).
-
-Los resultados, parámetros finales y enlace al video se añadirán después de las pruebas. El video es obligatorio según el enunciado académico.
