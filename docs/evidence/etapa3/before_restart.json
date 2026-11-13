@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "run_id": "4b60e030-db23-40d6-9e0f-dffa3a90accd",
+  "session_id": "1b646fc0-b678-4cd0-9c81-5fd5486c4821",
+  "reset_index": 0,
+  "attempt_id": "bde4a733-a2ab-4380-97f9-5cbb34efd7f8",
+  "state": "running",
+  "paused": false,
+  "physics_steps": 1290,
+  "sim_time_ns": 12900000000,
+  "elapsed_sim_s": 0.74,
+  "attempt_valid": true,
+  "ego_collision": false,
+  "end_reason": null,
+  "pose": [
+    0.0126323375267918,
+    0.03206177037256803,
+    1.1954730407943466
+  ],
+  "velocity": [
+    1.411927198726773e-05,
+    0.0,
+    0.0
+  ],
+  "configuration": {
+    "map_path": "/home/mateo/F1Tenth-Repository/src/f1tenth_gym_ros/maps/Zandvoort_map",
+    "map_img_ext": ".png",
+    "map_yaml_sha256": "cec2760ad8e3b9deb36ca66bec56c17b6c6d02f358f05b3eca6e1eeb1e946d7b",
+    "map_image_sha256": "7d2dbc9682152f5567892752202e27c823856e4440e011fdc7e87797b31791c0",
+    "timestep_s": 0.01,
+    "vehicle_parameters": {
+      "mu": 1.0489,
+      "C_Sf": 4.718,
+      "C_Sr": 5.4562,
+      "lf": 0.15875,
+      "lr": 0.17145,
+      "h": 0.074,
+      "m": 3.74,
+      "I": 0.04712,
+      "s_min": -0.4189,
+      "s_max": 0.4189,
+      "sv_min": -3.2,
+      "sv_max": 3.2,
+      "v_switch": 7.319,
+      "a_max": 9.51,
+      "v_min": -5.0,
+      "v_max": 20.0,
+      "width": 0.31,
+      "length": 0.58
+    },
+    "code_sha256": "f5975f5fd659c5770746af74c00441857d6931f86f5d1fa66316bafdd6598e7f"
+  }
+}

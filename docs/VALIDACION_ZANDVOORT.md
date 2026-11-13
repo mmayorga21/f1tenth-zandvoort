@@ -2,6 +2,8 @@
 
 Validación ejecutada el 12 de noviembre de 2026 en el equipo de desarrollo. Esta etapa valida integración y movimientos breves; no demuestra todavía conducción autónoma ni vueltas completas.
 
+Estado posterior: [la etapa 3](MEDICION_INTENTOS.md) incorporó `/clock`, colisiones por ROS y sensores sin duplicados a la frecuencia de física. Los resultados de este informe describen la ejecución original de la etapa 2.
+
 ## Configuración aplicada
 
 - Mapa del puente: `src/f1tenth_gym_ros/maps/Zandvoort_map`, extensión `.png`.

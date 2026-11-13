@@ -14,7 +14,7 @@ Proyecto individual de Vehículos Autónomos: desarrollar y evaluar un controlad
 
 Zandvoort activado y validado: mapa de ROS y simulador coinciden, LiDAR y odometría operativos, avance y giro comprobados a baja velocidad. El vehículo inicia en `(0, 0, 1.1954730407943466 rad)`. Véase el [informe de validación y su evidencia](docs/VALIDACION_ZANDVOORT.md).
 
-`controllers/gap_node.py` sigue siendo una plantilla incompleta. El controlador del proyecto, el contador, el cronómetro y la validación de 10 vueltas están pendientes. No hay resultados de carrera registrados. El puente aún no publica `/clock` ni un tópico dedicado de colisión; su integración corresponde a la etapa 3.
+`controllers/gap_node.py` sigue siendo una plantilla incompleta. El controlador del proyecto, el contador, el cronómetro y la validación de 10 vueltas están pendientes. No hay resultados de carrera registrados. El puente ya publica `/clock`, colisión y estado de intentos; pausa, reset y registro persistente están validados. Véase [la base de medición](docs/MEDICION_INTENTOS.md).
 
 ## Estructura actual
 
@@ -52,6 +52,7 @@ La integración prevista usa `/scan` para LiDAR, `/drive` para comandos Ackerman
 
 ## Plan, resultados y procedencia
 
+- [Tiempo, colisiones y registro de intentos](docs/MEDICION_INTENTOS.md).
 - [Validación de Zandvoort y diagnóstico reproducible](docs/VALIDACION_ZANDVOORT.md).
 - [Plan por etapas y criterios de aceptación](docs/PLAN_PROYECTO.md).
 - [Procedencia del código y de los archivos](docs/PROCEDENCIA.md).

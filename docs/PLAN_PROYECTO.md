@@ -48,4 +48,5 @@ Estas comprobaciones no sustituyen una prueba de ejecución del simulador.
 ## Hitos completados
 
 - Etapa 1: repositorio privado publicado y sincronizado. Invitación al profesor aplazada por el estudiante.
-- Etapa 2: Zandvoort, pose inicial, mapa ROS, sensores, avance, giro, parada y retorno comprobados. Véase [el informe](VALIDACION_ZANDVOORT.md). Reloj y colisiones por ROS pendientes de etapa 3.
+- Etapa 2: Zandvoort, pose inicial, mapa ROS, sensores, avance, giro, parada y retorno comprobados. Véase [el informe](VALIDACION_ZANDVOORT.md). Reloj y colisiones por ROS incorporados en la etapa 3.
+- Etapa 3: reloj de física, colisión retenida, pausa, reset, cierre de intentos y registro JSONL comprobados. Seis pruebas unitarias y 23 comprobaciones ROS pasadas; cierre y reinicio real del proceso verificados. Véase [la documentación](MEDICION_INTENTOS.md).

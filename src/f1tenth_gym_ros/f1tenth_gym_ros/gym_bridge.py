@@ -22,6 +22,17 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.clock import Clock as TimerClock, ClockType
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
+from rosgraph_msgs.msg import Clock
+from builtin_interfaces.msg import Time
+from std_msgs.msg import Bool, String
+from std_srvs.srv import Trigger, SetBool
+from .simulation_session import SimulationSession
+from pathlib import Path
+from datetime import datetime, timezone
+import hashlib
+import json
 
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
@@ -72,6 +83,7 @@ class GymBridge(Node):
         self.declare_parameter('stheta1', 0.0)  # Tipo 'float' con valor predeterminado
 
         self.declare_parameter('kb_teleop', False)  # Tipo 'bool' con valor predeterminado
+        self.declare_parameter('event_log_path', '~/.ros/f1tenth_zandvoort/events.jsonl')
 
 
 
@@ -133,10 +145,41 @@ class GymBridge(Node):
             self.obs, _ , self.done, _ = self.env.reset(np.array([[sx, sy, stheta]]))
             self.ego_scan = list(self.obs['scans'][0])
 
-        # sim physical step timer
-        self.drive_timer = self.create_timer(0.01, self.drive_timer_callback)
-        # topic publishing timer
-        self.timer = self.create_timer(0.004, self.timer_callback)
+        # Physics scheduling must not depend on the ROS clock we publish.
+        self.steady_clock = TimerClock(clock_type=ClockType.STEADY_TIME)
+        self.session = SimulationSession(float(self.env.unwrapped.timestep))
+        self.last_sensor_time_ns = None
+        self.clock_pub = self.create_publisher(
+            Clock, '/clock', QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
+        status_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                                reliability=ReliabilityPolicy.RELIABLE)
+        self.status_pub = self.create_publisher(String, '/sim/status', status_qos)
+        self.collision_pub = self.create_publisher(Bool, '/ego_racecar/collision', status_qos)
+        self.event_pub = self.create_publisher(String, '/sim/events', 100)
+        log_path = Path(self.get_parameter('event_log_path').value).expanduser()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.event_log = log_path.open('a', buffering=1)
+        self.configuration = {
+            'map_path': self.get_parameter('map_path').value,
+            'map_img_ext': self.get_parameter('map_img_ext').value,
+            'map_yaml_sha256': hashlib.sha256(Path(
+                self.get_parameter('map_path').value + '.yaml').read_bytes()).hexdigest(),
+            'map_image_sha256': hashlib.sha256(Path(
+                self.get_parameter('map_path').value +
+                self.get_parameter('map_img_ext').value).read_bytes()).hexdigest(),
+            'timestep_s': self.session.timestep,
+            'vehicle_parameters': self.env.unwrapped.params,
+            'code_sha256': hashlib.sha256(
+                Path(__file__).read_bytes() +
+                Path(__file__).with_name('simulation_session.py').read_bytes()).hexdigest(),
+        }
+        self.reset_service = self.create_service(Trigger, '/sim/reset', self.reset_callback)
+        self.pause_service = self.create_service(SetBool, '/sim/pause', self.pause_callback)
+        self.end_service = self.create_service(Trigger, '/sim/end_attempt', self.end_callback)
+        self.drive_timer = self.create_timer(
+            self.session.timestep, self.drive_timer_callback, clock=self.steady_clock)
+        self.timer = self.create_timer(0.004, self.timer_callback, clock=self.steady_clock)
+        self.status_timer = self.create_timer(0.1, self.publish_status, clock=self.steady_clock)
 
         # transform broadcaster
         self.br = TransformBroadcaster(self)
@@ -181,14 +224,26 @@ class GymBridge(Node):
                 '/cmd_vel',
                 self.teleop_callback,
                 10)
-
+        self._update_sim_state()
+        if self.ego_collision:
+            self.session.mark_collision()
+        self.publish_status()
 
     def drive_callback(self, drive_msg):
+        if not self.session.can_step:
+            return
+        if not np.isfinite([drive_msg.drive.speed, drive_msg.drive.steering_angle]).all():
+            self.ego_requested_speed = self.ego_steer = 0.0
+            return
+        if abs(drive_msg.drive.speed) > 0.0:
+            self.session.start()
         self.ego_requested_speed = drive_msg.drive.speed
         self.ego_steer = drive_msg.drive.steering_angle
         self.ego_drive_published = True
 
     def opp_drive_callback(self, drive_msg):
+        if not self.session.can_step:
+            return
         self.opp_requested_speed = drive_msg.drive.speed
         self.opp_steer = drive_msg.drive.steering_angle
         self.opp_drive_published = True
@@ -203,9 +258,9 @@ class GymBridge(Node):
         _, _, rtheta = euler.quat2euler([rqw, rqx, rqy, rqz], axes='sxyz')
         if self.has_opp:
             opp_pose = [self.obs['poses_x'][1], self.obs['poses_y'][1], self.obs['poses_theta'][1]]
-            self.obs, _ , self.done, _ = self.env.reset(np.array([[rx, ry, rtheta], opp_pose]))
+            self.reset_environment(np.array([[rx, ry, rtheta], opp_pose]), 'initialpose')
         else:
-            self.obs, _ , self.done, _ = self.env.reset(np.array([[rx, ry, rtheta]]))
+            self.reset_environment(np.array([[rx, ry, rtheta]]), 'initialpose')
 
     def opp_reset_callback(self, pose_msg):
         if self.has_opp:
@@ -216,8 +271,12 @@ class GymBridge(Node):
             rqz = pose_msg.pose.orientation.z
             rqw = pose_msg.pose.orientation.w
             _, _, rtheta = euler.quat2euler([rqw, rqx, rqy, rqz], axes='sxyz')
-            self.obs, _ , self.done, _ = self.env.reset(np.array([list(self.ego_pose), [rx, ry, rtheta]]))
+            self.reset_environment(np.array([list(self.ego_pose), [rx, ry, rtheta]]), 'goal_pose')
     def teleop_callback(self, twist_msg):
+        if not self.session.can_step:
+            return
+        if abs(twist_msg.linear.x) > 0.0:
+            self.session.start()
         if not self.ego_drive_published:
             self.ego_drive_published = True
 
@@ -230,15 +289,96 @@ class GymBridge(Node):
         else:
             self.ego_steer = 0.0
 
-    def drive_timer_callback(self):
-        if self.ego_drive_published and not self.has_opp:
-            self.obs, _, self.done, _ = self.env.step(np.array([[self.ego_steer, self.ego_requested_speed]]))
-        elif self.ego_drive_published and self.has_opp and self.opp_drive_published:
-            self.obs, _, self.done, _ = self.env.step(np.array([[self.ego_steer, self.ego_requested_speed], [self.opp_steer, self.opp_requested_speed]]))
+    def clear_commands(self):
+        self.ego_requested_speed = self.ego_steer = 0.0
+        self.ego_drive_published = False
+        if self.has_opp:
+            self.opp_requested_speed = self.opp_steer = 0.0
+            self.opp_drive_published = False
+
+    def reset_environment(self, poses, reason):
+        self.clear_commands()
+        # Persist the old attempt with its final pose before replacing state.
+        self.session.abort(reason)
+        self.flush_events()
+        self.obs, _, self.done, _ = self.env.reset(poses)
+        self.session.reset(reason)
         self._update_sim_state()
+        if self.ego_collision:
+            self.session.mark_collision()
+        self.last_sensor_time_ns = None
+        self.publish_status()
+        self.timer_callback()
+
+    def reset_callback(self, request, response):
+        poses = [[self.get_parameter(k).value for k in ('sx', 'sy', 'stheta')]]
+        if self.has_opp:
+            poses.append([self.get_parameter(k).value for k in ('sx1', 'sy1', 'stheta1')])
+        self.reset_environment(np.array(poses), 'reset_service')
+        response.success = not self.session.collision
+        response.message = self.session.session_id
+        return response
+
+    def pause_callback(self, request, response):
+        self.clear_commands()
+        self.session.pause(request.data)
+        self.publish_status()
+        response.success = True
+        response.message = 'paused' if request.data else 'resumed with zero commands'
+        return response
+
+    def end_callback(self, request, response):
+        self.clear_commands()
+        response.success = self.session.end()
+        response.message = 'attempt ended' if response.success else 'no running attempt'
+        self.publish_status()
+        return response
+
+    def sim_stamp(self):
+        stamp = Time()
+        stamp.sec, stamp.nanosec = divmod(self.session.time_ns, 1_000_000_000)
+        return stamp
+
+    def publish_status(self):
+        self.clock_pub.publish(Clock(clock=self.sim_stamp()))
+        snapshot = self.session.snapshot()
+        snapshot.update({'pose': list(self.ego_pose), 'velocity': list(self.ego_speed),
+                         'configuration': self.configuration})
+        self.status_pub.publish(String(data=json.dumps(snapshot)))
+        self.collision_pub.publish(Bool(data=self.session.collision))
+        self.flush_events()
+
+    def flush_events(self, publish=True):
+        for event in self.session.events:
+            event.update({'recorded_at_utc': datetime.now(timezone.utc).isoformat(),
+                          'configuration': self.configuration, 'pose': list(self.ego_pose)})
+            line = json.dumps(event)
+            self.event_log.write(line + '\n')
+            if publish:
+                self.event_pub.publish(String(data=line))
+        self.session.events.clear()
+
+    def drive_timer_callback(self):
+        if self.session.can_step:
+            actions = [[self.ego_steer, self.ego_requested_speed]]
+            if self.has_opp:
+                actions.append([self.opp_steer, self.opp_requested_speed])
+            self.obs, _, self.done, _ = self.env.step(np.array(actions))
+            self._update_sim_state()
+            self.session.step(collision=self.ego_collision)
+            if self.session.collision:
+                self.clear_commands()
+            # Backend done also includes a built-in lap heuristic, not just
+            # collisions. It must not terminate a future ten-lap attempt.
+            self.clock_pub.publish(Clock(clock=self.sim_stamp()))
+            if self.session.events:
+                self.publish_status()
 
     def timer_callback(self):
-        ts = self.get_clock().now().to_msg()
+        if self.last_sensor_time_ns == self.session.time_ns:
+            return
+        self.last_sensor_time_ns = self.session.time_ns
+        ts = self.sim_stamp()
 
         # pub scans
         scan = LaserScan()
@@ -272,8 +412,10 @@ class GymBridge(Node):
 
     def _update_sim_state(self):
         self.ego_scan = list(self.obs['scans'][0])
+        self.ego_collision = bool(self.obs['collisions'][0])
         if self.has_opp:
             self.opp_scan = list(self.obs['scans'][1])
+            self.opp_collision = bool(self.obs['collisions'][1])
             self.opp_pose[0] = self.obs['poses_x'][1]
             self.opp_pose[1] = self.obs['poses_y'][1]
             self.opp_pose[2] = self.obs['poses_theta'][1]
@@ -414,7 +556,17 @@ class GymBridge(Node):
 def main(args=None):
     rclpy.init(args=args)
     gym_bridge = GymBridge()
-    rclpy.spin(gym_bridge)
+    try:
+        rclpy.spin(gym_bridge)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        gym_bridge.session.abort('shutdown')
+        gym_bridge.flush_events(publish=False)
+        gym_bridge.event_log.close()
+        gym_bridge.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
