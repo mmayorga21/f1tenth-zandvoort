@@ -1,0 +1,25 @@
+{
+  "map": "Zandvoort_map",
+  "initial_position": [
+    0.0,
+    0.0
+  ],
+  "original_heading_rad": 0.0,
+  "original_front_range_m": 1.1470069911727174,
+  "selected_heading_rad": 1.1954730407943466,
+  "selected_front_range_m": 29.998272623799288,
+  "selected_initial_collision": false,
+  "selected_collision_after_100_steps_at_0_5_mps": false,
+  "selected_pose_after_100_steps": [
+    0.1444904618798862,
+    0.3667270606088483
+  ],
+  "physics_step_s": 0.01,
+  "vehicle": {
+    "length_m": 0.58,
+    "width_m": 0.31,
+    "steering_limit_rad": 0.4189,
+    "speed_limit_mps": 20.0
+  },
+  "note": "Direct f110_gym check, independent from ROS. Limits are backend defaults, not competition rules."
+}

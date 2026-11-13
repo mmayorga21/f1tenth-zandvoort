@@ -12,9 +12,9 @@ Proyecto individual de Vehículos Autónomos: desarrollar y evaluar un controlad
 
 ## Estado al 12 de noviembre de 2026
 
-Proyecto en preparación. Los mapas de Zandvoort están incorporados, pero `sim.yaml` todavía selecciona LevineB. `controllers/gap_node.py` es una plantilla incompleta. El controlador del proyecto, el contador, el cronómetro y la validación de 10 vueltas siguen pendientes. No hay resultados de carrera registrados.
+Zandvoort activado y validado: mapa de ROS y simulador coinciden, LiDAR y odometría operativos, avance y giro comprobados a baja velocidad. El vehículo inicia en `(0, 0, 1.1954730407943466 rad)`. Véase el [informe de validación y su evidencia](docs/VALIDACION_ZANDVOORT.md).
 
-El funcionamiento previo del entorno fue reportado en la conversación de origen; debe volver a comprobarse durante la validación de Zandvoort. El puente inspeccionado no publica `/clock`; la fuente de tiempo y la exposición de colisiones deben resolverse antes de validar tiempos.
+`controllers/gap_node.py` sigue siendo una plantilla incompleta. El controlador del proyecto, el contador, el cronómetro y la validación de 10 vueltas están pendientes. No hay resultados de carrera registrados. El puente aún no publica `/clock` ni un tópico dedicado de colisión; su integración corresponde a la etapa 3.
 
 ## Estructura actual
 
@@ -46,12 +46,13 @@ source install/setup.bash
 ros2 launch f1tenth_gym_ros gym_bridge_launch.py
 ```
 
-Este comando lanza el simulador con la configuración vigente; todavía no constituye una demostración de conducción autónoma en Zandvoort. La ruta del mapa en la configuración actual es específica del equipo de desarrollo.
+Este comando lanza Zandvoort con el vehículo detenido; todavía no constituye una demostración de conducción autónoma. La ruta del mapa en la configuración actual es específica del equipo de desarrollo.
 
 La integración prevista usa `/scan` para LiDAR, `/drive` para comandos Ackermann y `/ego_racecar/odom` para telemetría. Los comandos del controlador y la explicación detallada del algoritmo se agregarán cuando exista una implementación verificada.
 
 ## Plan, resultados y procedencia
 
+- [Validación de Zandvoort y diagnóstico reproducible](docs/VALIDACION_ZANDVOORT.md).
 - [Plan por etapas y criterios de aceptación](docs/PLAN_PROYECTO.md).
 - [Procedencia del código y de los archivos](docs/PROCEDENCIA.md).
 - [Tutorial original en español](README_es.md).

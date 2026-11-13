@@ -37,10 +37,15 @@ Cada intento registrará revisión del código, configuración, mapa, pose inici
 ## Estado inicial comprobado por lectura
 
 - Los mapas originales coinciden por SHA-256 con los copiados al workspace.
-- La configuración sigue seleccionando LevineB.
+- Al iniciar la etapa 1, la configuración seleccionaba LevineB. Ahora usa Zandvoort, validado en la etapa 2.
 - El launch lee `sim.yaml` desde el share del paquete; la copia instalada actual resuelve al archivo fuente.
 - `controllers/gap_node.py` es una plantilla sin implementación completa.
 - El puente inspeccionado no publica reloj ROS ni expone actualmente la información de colisión mediante un tópico dedicado.
 - El remoto original es `https://github.com/widegonz/F1Tenth-Repository.git`.
 
 Estas comprobaciones no sustituyen una prueba de ejecución del simulador.
+
+## Hitos completados
+
+- Etapa 1: repositorio privado publicado y sincronizado. Invitación al profesor aplazada por el estudiante.
+- Etapa 2: Zandvoort, pose inicial, mapa ROS, sensores, avance, giro, parada y retorno comprobados. Véase [el informe](VALIDACION_ZANDVOORT.md). Reloj y colisiones por ROS pendientes de etapa 3.

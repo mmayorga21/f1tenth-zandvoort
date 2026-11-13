@@ -1,0 +1,8 @@
+{
+  "all_sampled_centers_in_starting_track_component": true,
+  "sampled_poses": 3231,
+  "minimum_wall_clearance_bound_m": 0.6749355764180608,
+  "vehicle_length_m": 0.58,
+  "vehicle_width_m": 0.31,
+  "method": "PNG pixel distance to wall minus vehicle circumscribed radius; sampled odometry only, not simulator collision telemetry"
+}

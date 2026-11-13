@@ -42,16 +42,18 @@ bridge:
     scan_beams: 1080
 
     # map parameters
-    map_path: '/home/mateo/F1Tenth-Repository/src/f1tenth_gym_ros/maps/levineB'
+    map_path: '/home/mateo/F1Tenth-Repository/src/f1tenth_gym_ros/maps/Zandvoort_map'
     map_img_ext: '.png'
 
     # opponent parameters
     num_agent: 1
 
+    # Zandvoort: (0, 0) inside the long straight; heading along the track.
+    # Development starting pose, subject to competition rules.
     # ego starting pose on map
     sx: 0.0
     sy: 0.0
-    stheta: 0.0
+    stheta: 1.1954730407943466
 
     # opp starting pose on map
     sx1: 9.5
@@ -59,4 +61,4 @@ bridge:
     stheta1: 3.14
 
     # teleop
-    kb_teleop: True
+    kb_teleop: False
