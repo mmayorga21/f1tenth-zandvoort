@@ -52,3 +52,14 @@ qtcreator-*
 # Catkin custom files
 CATKIN_IGNORE
 
+
+# Python, development environments and local credentials
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
