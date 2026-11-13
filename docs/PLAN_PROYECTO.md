@@ -28,7 +28,7 @@ Cada intento registrará revisión del código, configuración, mapa, pose inici
 
 ## Pendientes de coordinación
 
-- Repositorio acordado: `mmayorga21/f1tenth-zandvoort`, privado. Publicación pendiente de autenticación.
+- Repositorio acordado: `mmayorga21/f1tenth-zandvoort`, privado. Creado en GitHub; publicación del historial pendiente de autenticación de Git.
 - Invitación al profesor aplazada por el estudiante hasta disponer de su usuario o correo.
 - Fecha de entrega y reglas de salida, sentido, cronometraje y colisión.
 - Restricciones sobre cambios al puente y configuraciones entre modalidades.
