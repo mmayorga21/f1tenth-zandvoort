@@ -146,13 +146,7 @@ El verificador activa el vehículo, comprueba el recorrido y finalmente lo desac
 
 La pérdida de escaneos produjo desactivación y comandos de velocidad cero. El observador registró la condición a los 0.57 s aproximadamente; esa cifra incluye el periodo de publicación del estado y la espera del verificador. Al suspender el proceso controlador, el puente invalidó el intento por `drive_timeout` en unos 0.32 s observados. Al reanudar el proceso no se reactivó la conducción.
 
-Se registraron 3220 muestras de trayectoria ROS, todas dentro del componente de pista del PNG. La ausencia de colisión se verificó mediante el estado retenido del simulador y la continuidad del mismo intento; no se dedujo únicamente de la figura. El tiempo tiene resolución de física de 0.01 s y corresponde a una línea de validación de desarrollo, pendiente de las reglas oficiales de salida/meta.
-
-![Vuelta ROS completa](evidence/etapa4/ros_lap_trajectory.png)
-
-![Velocidad y dirección durante la vuelta](evidence/etapa4/ros_lap_controls.png)
-
-Evidencia: [resumen](evidence/etapa4/summary.json), [vuelta directa](evidence/etapa4/offline_lap.json), [vuelta ROS](evidence/etapa4/ros_lap.json), [fallos y watchdogs](evidence/etapa4/watchdog_validation.json), [regresión de sesiones](evidence/etapa4/session_regression.json) y [eventos seleccionados de los intentos](evidence/etapa4/attempt_events.jsonl).
+Se registraron 3220 muestras de trayectoria ROS, todas dentro del componente de pista del PNG. La ausencia de colisión se verificó mediante el estado retenido del simulador y la continuidad del mismo intento; no se dedujo únicamente de una inspección visual. El tiempo tiene resolución de física de 0.01 s y corresponde a una línea de validación de desarrollo, pendiente de las reglas oficiales de salida/meta.
 
 El coche quedó restablecido a la pose de salida y el controlador desactivado. Estos resultados no representan todavía una sesión de diez vueltas ni una configuración optimizada de velocidad. El video obligatorio y la visualización definitiva de vueltas y tiempos siguen pendientes.
 

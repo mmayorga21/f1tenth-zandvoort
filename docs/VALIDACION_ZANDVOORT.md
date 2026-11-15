@@ -35,9 +35,7 @@ El punto `(0,0)` está dentro de la recta larga. El rumbo anterior `0 rad` veía
 
 El simulador directo informó ausencia de colisión al salir desde la pose elegida y tras 100 pasos con mando recto de 0.5 m/s. En la prueba ROS, las 3231 poses muestreadas permanecieron dentro del mismo componente de pista. La distancia a paredes del PNG, descontando el radio circunscrito del vehículo, dejó un margen conservador mínimo de aproximadamente 0.675 m.
 
-La prueba ROS aún no dispone de un tópico de colisión del simulador. La comprobación geométrica de las muestras es evidencia adicional, no sustituye la telemetría de colisión que se implementará en la etapa 3. RViz arrancó y registró la creación del mapa; la figura siguiente se construyó a partir de mapa, LiDAR y odometría, no es una captura de RViz.
-
-![Pose inicial, LiDAR y recorrido de diagnóstico](evidence/etapa2/spawn_and_scan.png)
+La prueba ROS aún no dispone de un tópico de colisión del simulador. La comprobación geométrica de las muestras es evidencia adicional, no sustituye la telemetría de colisión que se implementará en la etapa 3. RViz arrancó y registró la creación del mapa; se comprobó la coherencia entre mapa, LiDAR y odometría.
 
 ## Reproducción en el equipo actual
 
@@ -64,11 +62,7 @@ Para repetir también el movimiento breve, giro, parada y retorno a la pose inic
 
 La ruta del mapa en `sim.yaml` sigue siendo absoluta y específica de este equipo. Debe adaptarse al clonar en otra ubicación. La configuración `use_sim_time` del servidor y su lifecycle manager proviene del launch base; el sistema de reloj completo se resolverá en la etapa 3, antes de usarlo para medir vueltas.
 
-## Evidencia y límites del backend
-
-- [Mensajes y movimientos ROS](evidence/etapa2/ros_validation.json).
-- [Comprobación geométrica de las poses](evidence/etapa2/geometry_check.json).
-- [Prueba directa de pose en F110 Gym](evidence/etapa2/offline_spawn_check.json).
+## Límites del backend
 
 Parámetros por defecto encontrados en el backend: coche de 0.58 × 0.31 m, dirección limitada a ±0.4189 rad y velocidad máxima de 20 m/s. Son límites del modelo, no reglas del profesor ni velocidades recomendadas. La simulación integra pasos nominales de 0.01 s; la entrega de sensores a aproximadamente 250 Hz incluye publicaciones repetidas entre pasos.
 

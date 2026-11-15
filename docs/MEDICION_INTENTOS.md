@@ -88,8 +88,6 @@ Un reset hace retroceder `/clock` a cero. Es normal que RViz avise de un salto t
 - Cierre normal de un intento activo y reinicio real del proceso: evento `shutdown` inválido y nuevos identificadores, sin heredar el intento.
 - El proceso final ejecuta el mismo hash de código que los archivos fuente comprobados y queda en `ready`, con el vehículo detenido.
 
-Evidencia: [prueba integrada](evidence/etapa3/session_validation.json), [eventos seleccionados](evidence/etapa3/events.jsonl), [estado anterior al cierre](evidence/etapa3/before_restart.json), [evento de cierre](evidence/etapa3/shutdown_event.json) y [validación de reinicio](evidence/etapa3/restart_validation.json).
-
 Para repetir las pruebas unitarias:
 
 ```bash

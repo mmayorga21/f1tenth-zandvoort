@@ -63,3 +63,6 @@ venv/
 !.env.example
 *.pem
 *.key
+
+# Internal development recordings stay outside the repository
+/docs/evidence/
