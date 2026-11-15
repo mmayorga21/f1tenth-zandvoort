@@ -84,6 +84,7 @@ class GymBridge(Node):
 
         self.declare_parameter('kb_teleop', False)  # Tipo 'bool' con valor predeterminado
         self.declare_parameter('event_log_path', '~/.ros/f1tenth_zandvoort/events.jsonl')
+        self.declare_parameter('drive_timeout_s', 0.3)
 
 
 
@@ -147,6 +148,10 @@ class GymBridge(Node):
 
         # Physics scheduling must not depend on the ROS clock we publish.
         self.steady_clock = TimerClock(clock_type=ClockType.STEADY_TIME)
+        self.last_drive_time_ns = None
+        self.drive_timeout_s = float(self.get_parameter('drive_timeout_s').value)
+        if self.drive_timeout_s <= 0:
+            raise ValueError('drive_timeout_s must be positive')
         self.session = SimulationSession(float(self.env.unwrapped.timestep))
         self.last_sensor_time_ns = None
         self.clock_pub = self.create_publisher(
@@ -156,6 +161,9 @@ class GymBridge(Node):
         self.status_pub = self.create_publisher(String, '/sim/status', status_qos)
         self.collision_pub = self.create_publisher(Bool, '/ego_racecar/collision', status_qos)
         self.event_pub = self.create_publisher(String, '/sim/events', 100)
+        self.controller_metadata = None
+        self.controller_status_sub = self.create_subscription(
+            String, '/controller/status', self.controller_status_callback, status_qos)
         log_path = Path(self.get_parameter('event_log_path').value).expanduser()
         log_path.parent.mkdir(parents=True, exist_ok=True)
         self.event_log = log_path.open('a', buffering=1)
@@ -168,6 +176,7 @@ class GymBridge(Node):
                 self.get_parameter('map_path').value +
                 self.get_parameter('map_img_ext').value).read_bytes()).hexdigest(),
             'timestep_s': self.session.timestep,
+            'drive_timeout_s': self.drive_timeout_s,
             'vehicle_parameters': self.env.unwrapped.params,
             'code_sha256': hashlib.sha256(
                 Path(__file__).read_bytes() +
@@ -239,6 +248,7 @@ class GymBridge(Node):
             self.session.start()
         self.ego_requested_speed = drive_msg.drive.speed
         self.ego_steer = drive_msg.drive.steering_angle
+        self.last_drive_time_ns = self.steady_clock.now().nanoseconds
         self.ego_drive_published = True
 
     def opp_drive_callback(self, drive_msg):
@@ -281,6 +291,7 @@ class GymBridge(Node):
             self.ego_drive_published = True
 
         self.ego_requested_speed = twist_msg.linear.x
+        self.last_drive_time_ns = self.steady_clock.now().nanoseconds
 
         if twist_msg.angular.z > 0.0:
             self.ego_steer = 0.3
@@ -291,6 +302,7 @@ class GymBridge(Node):
 
     def clear_commands(self):
         self.ego_requested_speed = self.ego_steer = 0.0
+        self.last_drive_time_ns = None
         self.ego_drive_published = False
         if self.has_opp:
             self.opp_requested_speed = self.opp_steer = 0.0
@@ -339,11 +351,23 @@ class GymBridge(Node):
         stamp.sec, stamp.nanosec = divmod(self.session.time_ns, 1_000_000_000)
         return stamp
 
+    def controller_status_callback(self, msg):
+        try:
+            data = json.loads(msg.data)
+            metadata = {key: data[key] for key in
+                        ('configuration', 'code_sha256', 'config_sha256')}
+            if metadata != self.controller_metadata:
+                self.controller_metadata = metadata
+                self.session.emit('controller_configured')
+        except (ValueError, TypeError, KeyError):
+            self.get_logger().warning('Ignoring invalid controller configuration metadata')
+
     def publish_status(self):
         self.clock_pub.publish(Clock(clock=self.sim_stamp()))
         snapshot = self.session.snapshot()
         snapshot.update({'pose': list(self.ego_pose), 'velocity': list(self.ego_speed),
-                         'configuration': self.configuration})
+                         'configuration': self.configuration,
+                         'controller': self.controller_metadata})
         self.status_pub.publish(String(data=json.dumps(snapshot)))
         self.collision_pub.publish(Bool(data=self.session.collision))
         self.flush_events()
@@ -351,7 +375,8 @@ class GymBridge(Node):
     def flush_events(self, publish=True):
         for event in self.session.events:
             event.update({'recorded_at_utc': datetime.now(timezone.utc).isoformat(),
-                          'configuration': self.configuration, 'pose': list(self.ego_pose)})
+                          'configuration': self.configuration, 'pose': list(self.ego_pose),
+                          'controller': self.controller_metadata})
             line = json.dumps(event)
             self.event_log.write(line + '\n')
             if publish:
@@ -359,6 +384,13 @@ class GymBridge(Node):
         self.session.events.clear()
 
     def drive_timer_callback(self):
+        if (self.session.can_step and self.ego_requested_speed != 0.0
+                and self.last_drive_time_ns is not None
+                and (self.steady_clock.now().nanoseconds - self.last_drive_time_ns)/1e9
+                > self.drive_timeout_s):
+            self.clear_commands()
+            self.session.abort('drive_timeout')
+            self.publish_status()
         if self.session.can_step:
             actions = [[self.ego_steer, self.ego_requested_speed]]
             if self.has_opp:

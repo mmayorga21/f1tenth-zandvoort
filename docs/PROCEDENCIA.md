@@ -22,3 +22,7 @@ cec2760ad8e3b9deb36ca66bec56c17b6c6d02f358f05b3eca6e1eeb1e946d7b  Zandvoort_map.
 ## Documentación de continuidad
 
 El enunciado académico y el contexto de la conversación anterior se usan como referencias de trabajo locales. Sus contenidos no se publican automáticamente. Las propuestas de ese contexto no se consideran implementadas sin evidencia.
+
+## Implementación de la etapa 4
+
+El paquete `src/f1tenth_controller` contiene la implementación propia del proyecto, con lógica reactiva, adaptador ROS, configuración y pruebas. Su licencia se incluye en el propio paquete. Las regiones geométricas de `scripts/lap_validation.py` sirven exclusivamente para validar experimentos y no se usan como trayectoria de conducción.

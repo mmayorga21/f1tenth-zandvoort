@@ -50,3 +50,4 @@ Estas comprobaciones no sustituyen una prueba de ejecución del simulador.
 - Etapa 1: repositorio privado publicado y sincronizado. Invitación al profesor aplazada por el estudiante.
 - Etapa 2: Zandvoort, pose inicial, mapa ROS, sensores, avance, giro, parada y retorno comprobados. Véase [el informe](VALIDACION_ZANDVOORT.md). Reloj y colisiones por ROS incorporados en la etapa 3.
 - Etapa 3: reloj de física, colisión retenida, pausa, reset, cierre de intentos y registro JSONL comprobados. Seis pruebas unitarias y 23 comprobaciones ROS pasadas; cierre y reinicio real del proceso verificados. Véase [la documentación](MEDICION_INTENTOS.md).
+- Etapa 4: Follow the Gap implementado en paquete propio; una vuelta directa de 321.84 s y una vuelta ROS de 321.83 s sin colisión. Verificadas activación, paradas, reinicios, pérdida de datos y pérdida del proceso. Véase [el tutorial y la evidencia](FOLLOW_THE_GAP.md).
