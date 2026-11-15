@@ -9,4 +9,6 @@ setup(name='f1tenth_controller', version='0.1.0', packages=['f1tenth_controller'
       install_requires=['setuptools', 'numpy'], tests_require=['pytest'], zip_safe=True,
       maintainer='mmayorga21', maintainer_email='mmayorga21@users.noreply.github.com',
       description='Reactive Follow the Gap for Zandvoort', license='MIT',
-      entry_points={'console_scripts': ['gap_follower = f1tenth_controller.gap_node:main']})
+      entry_points={'console_scripts': ['gap_follower = f1tenth_controller.gap_node:main',
+                                        'lap_tracker = f1tenth_controller.lap_node:main',
+                                        'lap_display = f1tenth_controller.lap_display_node:main']})
