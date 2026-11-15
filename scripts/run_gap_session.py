@@ -32,12 +32,13 @@ def main():
     parser.add_argument('--laps', type=int, required=True)
     parser.add_argument('--seed', type=int, default=12345)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--config', default=str(ROOT/'src/f1tenth_controller/config/follow_the_gap.yaml'))
     args = parser.parse_args()
     if args.laps < 1 or args.seed < 0:
         parser.error('laps must be positive and seed nonnegative')
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    gap_file = ROOT/'src/f1tenth_controller/config/follow_the_gap.yaml'
+    gap_file = Path(args.config)
     lap_file = ROOT/'src/f1tenth_controller/config/lap_tracker.yaml'
     gap_config = yaml.safe_load(gap_file.read_text())['gap_follower']['ros__parameters']
     lap_config = yaml.safe_load(lap_file.read_text())['lap_tracker']['ros__parameters']
@@ -126,7 +127,9 @@ def main():
         report.update(result=result, failure=failure, measurement=counter.snapshot(),
                       collision=bool(obs['collisions'][0]),
                       reference_finishes_sim_s=reference_finishes,
-                      wall_elapsed_s=time.monotonic()-wall_start, trajectory=rows)
+                      wall_elapsed_s=time.monotonic()-wall_start, trajectory=rows,
+                      final_pose=[float(obs[k][0]) for k in ('poses_x','poses_y','poses_theta')],
+                      last_decision=asdict(command))
         write_report(output, report)
         env.close()
     print(json.dumps({k: v for k, v in report.items() if k not in

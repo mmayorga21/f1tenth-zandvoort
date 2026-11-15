@@ -27,13 +27,21 @@ class GapParameters:
     max_acceleration_mps2: float = 1.0
     emergency_front_distance_m: float = 0.45
     front_clearance_half_angle_rad: float = 0.14
+    lateral_acceleration_limit_mps2: float = 0.0
+    braking_deceleration_mps2: float = 0.0
 
     def validate(self):
         values = asdict(self)
         if not all(math.isfinite(float(v)) for v in values.values()):
             raise ValueError('Parameters must be finite')
-        if any(v <= 0 for k, v in values.items() if k not in ('heading_weight', 'continuity_weight')):
+        optional = ('heading_weight', 'continuity_weight', 'lateral_acceleration_limit_mps2',
+                    'braking_deceleration_mps2')
+        if any(v <= 0 for k, v in values.items() if k not in optional):
             raise ValueError('Distances, limits and windows must be positive')
+        if self.lateral_acceleration_limit_mps2 < 0 or self.braking_deceleration_mps2 < 0:
+            raise ValueError('Optional speed limits cannot be negative')
+        if (self.lateral_acceleration_limit_mps2 > 0) != (self.braking_deceleration_mps2 > 0):
+            raise ValueError('Curvature and braking limits must be enabled together')
         if not 0 < self.min_speed_mps <= self.max_speed_mps:
             raise ValueError('Invalid speed interval')
         if self.front_half_angle_rad > math.pi / 2 + 1e-6:
@@ -138,11 +146,24 @@ class FollowGap:
         steering = self.previous_steering + float(np.clip(
             alpha*(desired-self.previous_steering),
             -p.max_steering_rate_rad_s*dt, p.max_steering_rate_rad_s*dt))
-        # Slow down before the actual wheel angle catches up with a large goal.
-        turn_fraction = abs(desired)/p.max_steering_rad
-        speed = p.max_speed_mps - (p.max_speed_mps-p.min_speed_mps)*turn_fraction
-        speed = min(speed, max(0.0, (front-p.emergency_front_distance_m)*0.8))
-        speed = min(speed, self.previous_speed+p.max_acceleration_mps2*dt)
+        speed = self.speed_limit(desired, steering, front, dt)
         self.previous_target, self.previous_steering, self.previous_speed = target_angle, steering, speed
         return Decision(float(speed), float(steering), 'following_gap', target_angle,
                         float(extended[target]), float(angles[start]), float(angles[end]), front)
+
+    def speed_limit(self, desired, steering, front, dt):
+        p = self.p
+        if p.lateral_acceleration_limit_mps2 > 0:
+            # Limit for both the upcoming and current commanded curvature:
+            # do not accelerate while the wheels are still unwinding a turn.
+            curvature = max(abs(math.tan(desired)), abs(math.tan(steering)))/p.wheelbase_m
+            corner_speed = math.sqrt(p.lateral_acceleration_limit_mps2/max(curvature, 1e-6))
+            stopping_distance = max(0.0, front-p.emergency_front_distance_m)
+            braking_speed = math.sqrt(2*p.braking_deceleration_mps2*stopping_distance)
+            speed = min(p.max_speed_mps, corner_speed, braking_speed)
+        else:
+            # Keep the validated conservative policy exactly reproducible.
+            turn_fraction = abs(desired)/p.max_steering_rad
+            speed = p.max_speed_mps-(p.max_speed_mps-p.min_speed_mps)*turn_fraction
+            speed = min(speed, max(0.0, (front-p.emergency_front_distance_m)*0.8))
+        return min(speed, self.previous_speed+p.max_acceleration_mps2*dt)
