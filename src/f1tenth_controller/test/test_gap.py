@@ -96,3 +96,11 @@ class GateTests(unittest.TestCase):
         self.assertFalse(gate.enable(.4,1))
         gate.scan_received=1.
         self.assertFalse(gate.enable(1.,1))
+
+    def test_completed_target_disarms_and_cannot_be_enabled_again(self):
+        gate, status = self.ready()
+        self.assertTrue(gate.enable(0., 1))
+        gate.on_status({**status, 'completion_requested': True}, .01)
+        self.assertFalse(gate.armed)
+        self.assertEqual(gate.reason, 'target_laps_completed')
+        self.assertFalse(gate.enable(.01, 1))

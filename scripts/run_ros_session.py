@@ -124,6 +124,8 @@ def main():
         wait_for(lambda: len(latest) == 3, 8.)
         if any(node.count_publishers(topic) != 1 for topic in ('/clock', '/drive', '/laps/status')):
             raise SessionError('duplicate_or_missing_publisher')
+        if latest['laps']['target_laps'] != args.laps:
+            raise SessionError('requested_laps_must_match_runtime_target')
         cleanup_needed = True
         call('enable', False)
         call('reset')
@@ -175,17 +177,21 @@ def main():
             raise SessionError('wall_time_limit')
         # Finish timing is captured above; braking and service latency add no
         # time to the completed-laps total used for comparison.
-        call('enable', False)
         wait_for(lambda: len(references) >= args.laps, timeout=2.)
         phase = 'stopping'
-        wait_for(lambda: abs(latest['sim']['velocity'][0]) < .02)
-        call('end')
-        wait_for(lambda: latest['laps']['state'] == 'ended')
+        # The runtime must stop itself. This observer never closes a successful
+        # attempt through the manual-end service.
+        wait_for(lambda: latest['laps']['state'] == 'ended'
+                 and latest['sim']['state'] == 'ended'
+                 and not latest['controller']['armed'], timeout=8.)
         final = latest['laps']
         if (final['lap_count'] != args.laps or final['measurement_valid'] is not True
                 or final['pause_used'] or final['lap_times_s'] != target_status['lap_times_s']
                 or latest['sim']['ego_collision'] or latest['sim']['attempt_valid'] is not True):
             raise SessionError('final_session_not_valid')
+        if (latest['sim']['end_reason'] != 'target_laps_completed'
+                or abs(latest['sim']['velocity'][0]) >= .02):
+            raise SessionError('automatic_finish_not_observed')
         if len(references) != args.laps:
             raise SessionError('independent_route_count_disagrees')
         accumulated = 0.

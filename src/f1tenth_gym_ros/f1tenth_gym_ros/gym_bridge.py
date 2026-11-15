@@ -35,7 +35,7 @@ import hashlib
 import json
 
 from sensor_msgs.msg import LaserScan
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, OccupancyGrid
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from geometry_msgs.msg import Twist
@@ -164,6 +164,15 @@ class GymBridge(Node):
         self.controller_metadata = None
         self.controller_status_sub = self.create_subscription(
             String, '/controller/status', self.controller_status_callback, status_qos)
+        self.laps_status_sub = self.create_subscription(
+            String, '/laps/status', self.laps_status_callback, status_qos)
+        # RViz clears its map on a backwards /clock jump. Replay the static
+        # map even while physics is stopped so reset does not leave it blank.
+        self.static_map = None
+        self.map_pub = self.create_publisher(OccupancyGrid, '/map', status_qos)
+        self.map_sub = self.create_subscription(
+            OccupancyGrid, '/map_source', self.map_callback, status_qos)
+        self.map_timer = self.create_timer(2.0, self.publish_map, clock=self.steady_clock)
         log_path = Path(self.get_parameter('event_log_path').value).expanduser()
         log_path.parent.mkdir(parents=True, exist_ok=True)
         self.event_log = log_path.open('a', buffering=1)
@@ -239,7 +248,7 @@ class GymBridge(Node):
         self.publish_status()
 
     def drive_callback(self, drive_msg):
-        if not self.session.can_step:
+        if not self.session.can_step or self.session.completion_requested:
             return
         if not np.isfinite([drive_msg.drive.speed, drive_msg.drive.steering_angle]).all():
             self.ego_requested_speed = self.ego_steer = 0.0
@@ -252,7 +261,7 @@ class GymBridge(Node):
         self.ego_drive_published = True
 
     def opp_drive_callback(self, drive_msg):
-        if not self.session.can_step:
+        if not self.session.can_step or self.session.completion_requested:
             return
         self.opp_requested_speed = drive_msg.drive.speed
         self.opp_steer = drive_msg.drive.steering_angle
@@ -283,7 +292,7 @@ class GymBridge(Node):
             _, _, rtheta = euler.quat2euler([rqw, rqx, rqy, rqz], axes='sxyz')
             self.reset_environment(np.array([list(self.ego_pose), [rx, ry, rtheta]]), 'goal_pose')
     def teleop_callback(self, twist_msg):
-        if not self.session.can_step:
+        if not self.session.can_step or self.session.completion_requested:
             return
         if abs(twist_msg.linear.x) > 0.0:
             self.session.start()
@@ -362,6 +371,22 @@ class GymBridge(Node):
         except (ValueError, TypeError, KeyError):
             self.get_logger().warning('Ignoring invalid controller configuration metadata')
 
+    def map_callback(self, msg):
+        self.static_map = msg
+        self.publish_map()
+
+    def publish_map(self):
+        if self.static_map is not None:
+            self.map_pub.publish(self.static_map)
+
+    def laps_status_callback(self, msg):
+        try:
+            if self.session.request_completion(json.loads(msg.data)):
+                self.clear_commands()
+                self.publish_status()
+        except (ValueError, TypeError, AttributeError):
+            self.get_logger().warning('Ignoring invalid lap completion status')
+
     def publish_status(self):
         self.clock_pub.publish(Clock(clock=self.sim_stamp()))
         snapshot = self.session.snapshot()
@@ -398,6 +423,7 @@ class GymBridge(Node):
             self.obs, _, self.done, _ = self.env.step(np.array(actions))
             self._update_sim_state()
             self.session.step(collision=self.ego_collision)
+            self.session.finish_if_stopped(float(self.ego_speed[0]))
             if self.session.collision:
                 self.clear_commands()
             # Backend done also includes a built-in lap heuristic, not just

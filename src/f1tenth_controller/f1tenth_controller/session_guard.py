@@ -48,13 +48,16 @@ class SessionGuard:
             raise SessionError('effective_configuration_changed')
         if simulator['ego_collision'] or simulator['attempt_valid'] is not True:
             raise SessionError('simulator_attempt_invalid')
-        if simulator['state'] != 'running' or laps['state'] != 'running':
+        automatic_finish = (simulator.get('completion_requested') is True
+                            and simulator.get('end_reason') in (None, 'target_laps_completed'))
+        allowed_states = ('running', 'ended') if automatic_finish else ('running',)
+        if simulator['state'] not in allowed_states or laps['state'] not in allowed_states:
             raise SessionError('attempt_not_running')
         if simulator['paused'] or laps['paused'] or laps['pause_used']:
             raise SessionError('pause_used_during_session')
         if laps['measurement_valid'] is not True:
             raise SessionError('lap_measurement_invalid: '+str(laps['reason']))
-        if not controller['armed']:
+        if not controller['armed'] and not automatic_finish:
             raise SessionError('controller_disabled')
         count, times = laps['lap_count'], laps['lap_times_s']
         if not isinstance(count, int) or count < self.last_count or count > self.last_count+1:

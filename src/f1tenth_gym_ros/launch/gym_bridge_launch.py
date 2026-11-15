@@ -54,6 +54,7 @@ def generate_launch_description():
     map_server_node = Node(
         package='nav2_map_server',
         executable='map_server',
+        remappings=[('map', 'map_source')],
         parameters=[{'yaml_filename': config_dict['bridge']['ros__parameters']['map_path'] + '.yaml'},
                     {'topic': 'map'},
                     {'frame_id': 'map'},

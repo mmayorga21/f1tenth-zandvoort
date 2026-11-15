@@ -76,3 +76,53 @@ class SessionTests(unittest.TestCase):
         a.abort('shutdown')
         self.assertFalse(a.valid)
         self.assertEqual(a.end_reason, 'shutdown')
+
+    def completion_status(self, session):
+        return {**session.snapshot(), 'state': 'running', 'target_laps': 10,
+                'lap_count': 10, 'target_reached': True, 'measurement_valid': True,
+                'pause_used': False}
+
+    def test_automatic_finish_waits_for_braking_and_freezes_physics(self):
+        session = SimulationSession(.01)
+        session.start()
+        session.step()
+        self.assertTrue(session.request_completion(self.completion_status(session)))
+        for speed in [6., .03, float('nan')]:
+            self.assertFalse(session.finish_if_stopped(speed))
+        self.assertEqual(session.state, 'running')
+        self.assertTrue(session.finish_if_stopped(.01))
+        self.assertEqual(session.end_reason, 'target_laps_completed')
+        self.assertTrue(session.valid)
+        before = session.snapshot()
+        session.step()
+        self.assertEqual(before, session.snapshot())
+        session.reset('reset_service')
+        self.assertFalse(session.completion_requested)
+
+    def test_stale_invalid_incomplete_or_foreign_finish_is_ignored(self):
+        for change in [{'attempt_id': 'previous'}, {'run_id': 'other'},
+                       {'session_id': 'old'}, {'lap_count': 9}, {'target_laps': 0},
+                       {'target_reached': False}, {'measurement_valid': False},
+                       {'pause_used': True}, {'paused': True}, {'state': 'invalid'},
+                       {'sim_time_ns': -1}, {'sim_time_ns': 10**12}]:
+            with self.subTest(change=change):
+                session = SimulationSession(.01)
+                session.start()
+                self.assertFalse(session.request_completion(
+                    {**self.completion_status(session), **change}))
+                self.assertFalse(session.finish_if_stopped(0.))
+        session = SimulationSession(.01)
+        session.start()
+        old_status = self.completion_status(session)
+        for _ in range(101):
+            session.step()
+        self.assertFalse(session.request_completion(old_status))
+
+    def test_collision_during_braking_cannot_become_success(self):
+        session = SimulationSession(.01)
+        session.start()
+        session.request_completion(self.completion_status(session))
+        session.step(collision=True)
+        self.assertFalse(session.finish_if_stopped(0.))
+        self.assertEqual(session.end_reason, 'collision')
+        self.assertFalse(session.valid)

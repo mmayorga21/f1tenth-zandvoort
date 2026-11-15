@@ -102,3 +102,22 @@ class SessionGuardTests(unittest.TestCase):
         self.completed(1)
         with self.assertRaises(SessionError):
             SessionGuard(10, self.sim, self.laps, self.controller)
+
+    def test_automatic_braking_and_finish_preserve_ten_lap_validation(self):
+        for count in range(10):
+            self.completed(count)
+            self.assertFalse(self.observe())
+        # Source status and counter messages can arrive in either order.
+        self.sim['completion_requested'] = True
+        self.controller['armed'] = False
+        self.assertFalse(self.observe())
+        self.completed(10)
+        self.assertTrue(self.observe())
+        self.sim.update(state='ended', end_reason='target_laps_completed')
+        self.laps['state'] = 'ended'
+        self.assertTrue(self.observe())
+
+    def test_manual_end_does_not_qualify_as_automatic_completion(self):
+        self.sim.update(completion_requested=True, state='ended', end_reason='manual_stop')
+        with self.assertRaises(SessionError):
+            self.observe()

@@ -1,5 +1,6 @@
 """Physics-time attempt lifecycle, independent of ROS and the wall clock."""
 
+import math
 from uuid import uuid4
 
 
@@ -32,6 +33,7 @@ class SimulationSession:
             'elapsed_sim_s': elapsed * self.timestep,
             'attempt_valid': self.valid, 'ego_collision': self.collision,
             'end_reason': self.end_reason,
+            'completion_requested': self.completion_requested,
         }
 
     def emit(self, event):
@@ -50,6 +52,7 @@ class SimulationSession:
         self.collision = False
         self.paused = False
         self.end_reason = None
+        self.completion_requested = False
         self.emit('session_ready')
 
     def start(self):
@@ -76,10 +79,37 @@ class SimulationSession:
             self.paused = paused
             self.emit('paused' if paused else 'resumed')
 
-    def end(self):
+    def request_completion(self, laps):
+        """Accept only a valid finish measurement belonging to this attempt."""
+        if (self.state != 'running' or self.valid is not True or self.paused
+                or self.completion_requested):
+            return False
+        if any(laps.get(k) != self.snapshot()[k]
+               for k in ('run_id', 'session_id', 'attempt_id')):
+            return False
+        target, count = laps.get('target_laps'), laps.get('lap_count')
+        stamp = laps.get('sim_time_ns')
+        if (type(target) is not int or target < 1 or type(count) is not int
+                or count != target or laps.get('target_reached') is not True
+                or laps.get('measurement_valid') is not True
+                or laps.get('state') != 'running' or laps.get('pause_used') is not False
+                or laps.get('paused') is not False
+                or type(stamp) is not int or stamp < 0
+                or not 0 <= self.time_ns-stamp <= 1_000_000_000):
+            return False
+        self.completion_requested = True
+        return True
+
+    def finish_if_stopped(self, speed):
+        if (self.completion_requested and self.state == 'running'
+                and math.isfinite(speed) and abs(speed) < 0.02):
+            return self.end('target_laps_completed')
+        return False
+
+    def end(self, reason='manual_stop'):
         if self.state != 'running':
             return False
-        self.state, self.end_reason = 'ended', 'manual_stop'
+        self.state, self.end_reason = 'ended', reason
         self.emit('attempt_ended')
         return True
 

@@ -24,6 +24,7 @@ REASONS = {
     'drive_timeout': 'El simulador interrumpio el intento por falta de mandos',
     'shutdown': 'El simulador interrumpio el intento',
     'manual_stop': 'Intento cerrado manualmente',
+    'target_laps_completed': 'Intento finalizado automaticamente: objetivo de vueltas completado',
 }
 
 
