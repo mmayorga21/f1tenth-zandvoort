@@ -1,0 +1,74 @@
+# Preparación para las etapas 4 a 6; todavía no se puede ejecutar este escenario.
+# No es un archivo de parámetros ROS. Los archivos base controlan un solo robot.
+schema_version: 1
+scenario: two_vehicles
+runtime_ready: false
+baseline_tag: parte-1-finalizada
+
+base_files:
+  simulator: src/f1tenth_gym_ros/config/sim.yaml
+  controller: src/f1tenth_controller/config/follow_the_gap.yaml
+  lap_tracker: src/f1tenth_controller/config/lap_tracker.yaml
+  map_image: src/f1tenth_gym_ros/maps/Zandvoort_map.png
+  map_metadata: src/f1tenth_gym_ros/maps/Zandvoort_map.yaml
+
+vehicles:
+  - id: ego_racecar
+    algorithm: follow_the_gap
+    start: simulator_ego_pose
+  - id: opp_racecar
+    algorithm: follow_the_gap
+    start:
+      relative_to: ego_racecar
+      ahead_m: 5.0
+      reference: vehicle_centers_along_start_straight
+      heading: same_direction
+
+obstacles:
+  count: 0
+  objects: []
+
+race:
+  independent_controllers: true
+  independent_lap_counters: true
+  common_start: true
+  # Perfiles distintos permitidos; sus valores se elegirán al validar el rebase.
+  different_speed_profiles_allowed: true
+  invalidate_on_collision_of_any_vehicle: true
+  invalidate_on_command_loss_of_any_vehicle: true
+  # Evita convertir al primer finalista en un obstáculo inmóvil sobre la pista.
+  first_finisher: continue_driving_until_both_complete
+  record_first_ten_lap_times_for_each_vehicle: true
+  stop_both_at_end: true
+
+acceptance:
+  full_consecutive_laps_per_vehicle: 10
+  collisions_allowed: 0
+  pauses_allowed: false
+  resets_during_attempt_allowed: false
+  timing: simulation_clock
+  # Cada robot debe recorrer diez circuitos completos desde su propia salida.
+  lap_reference: each_vehicle_start_gate
+  finish_when: all_vehicles_complete
+  overtakes_required: 1
+
+overtake:
+  overtaking_vehicle: ego_racecar
+  overtaken_vehicle: opp_racecar
+  must_start_behind: true
+  must_finish_fully_ahead: true
+  must_be_collision_free: true
+  must_remain_inside_track: true
+  must_occur_before_overtaker_completes_ten_laps: true
+  measurement: continuous_progress_along_track_with_vehicle_extent
+  # El margen y la persistencia evitan registrar un rebase por ruido o solape.
+  clearance_and_confirmation_window: select_and_validate_in_stage_5
+  measurement_must_not_drive_vehicles: true
+
+pending_implementation:
+  - verify_five_meter_spawn_on_track
+  - separate_controller_topics_and_services
+  - add_per_vehicle_lap_and_collision_tracking
+  - monitor_both_command_streams
+  - implement_and_validate_overtake_measurement
+  - implement_joint_automatic_finish
