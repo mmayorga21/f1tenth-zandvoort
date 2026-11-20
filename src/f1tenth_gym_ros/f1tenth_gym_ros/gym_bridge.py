@@ -219,6 +219,7 @@ class GymBridge(Node):
             'vehicle_parameters': self.env.unwrapped.params,
             'num_agents': num_agents,
             'starting_poses': self.start_poses,
+            'opponent_start_offset_m': float(self.get_parameter('opponent_start_offset_m').value),
             'completion_policy': 'manual_integration' if self.has_opp else 'target_laps',
             'code_sha256': hashlib.sha256(
                 Path(__file__).read_bytes() +

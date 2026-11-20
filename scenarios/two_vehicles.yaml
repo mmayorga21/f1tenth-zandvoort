@@ -43,7 +43,7 @@ vehicles:
     own_obstacle_and_corner_speed_limits: true
     start:
       relative_to: ego_racecar
-      ahead_m: 5.0
+      ahead_m: 30.0
       reference: vehicle_centers_along_start_straight
       heading: same_direction
 

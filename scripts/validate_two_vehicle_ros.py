@@ -118,7 +118,7 @@ def main():
         spin(.15)
 
     try:
-        wait(lambda: len(latest) == 5 and all(v in scans for v in vehicles))
+        wait(lambda: len(latest) == 5 and all(v in scans for v in vehicles), timeout=30.)
         if node.count_publishers('/clock') != 1 or node.count_publishers('/sim/status') != 1:
             raise ValueError('duplicate_or_missing_simulator')
         for v in vehicles:
@@ -132,7 +132,8 @@ def main():
         if source['configuration']['num_agents'] != 2:
             raise ValueError('expected_two_vehicles')
         starts = source['configuration']['starting_poses']
-        if not math.isclose(math.dist(starts[0][:2], starts[1][:2]), 5., abs_tol=1e-8):
+        offset = source['configuration']['opponent_start_offset_m']
+        if offset <= 0 or not math.isclose(math.dist(starts[0][:2], starts[1][:2]), offset, abs_tol=1e-8):
             raise ValueError('wrong_starting_separation')
         length, width = (source['configuration']['vehicle_parameters'][k] for k in ('length', 'width'))
         for v, start, scale in zip(vehicles, starts, (1., .5)):

@@ -23,5 +23,5 @@ bridge:
     stheta: 1.1954730407943466
     kb_teleop: false
     drive_timeout_s: 0.3
-    opponent_start_offset_m: 5.0
+    opponent_start_offset_m: 30.0
     event_log_path: ~/.ros/f1tenth_zandvoort/two_vehicle_events.jsonl
