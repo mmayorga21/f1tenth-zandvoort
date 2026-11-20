@@ -6,7 +6,7 @@ This project uses Follow the Gap, a reactive navigation algorithm that selects t
 
 The controller processes the readings, adds a safety margin around obstacles, and identifies contiguous areas of free space. It selects a target within the chosen gap and steers towards it. Speed is adjusted to the required turn and the available clearance ahead.
 
-The vehicle responds to the observed surroundings without following a predefined driving trajectory. A separate lap tracker uses odometry to count complete circuits and measure lap times. In the two-vehicle integration, each vehicle runs its own Follow the Gap controller and lap tracker. The secondary vehicle starts 30 metres ahead, near the first obstacle, and applies a factor of 0.5 to its controller's speed command.
+The vehicle responds to the observed surroundings without following a predefined driving trajectory. A separate lap tracker uses odometry to count complete circuits and measure lap times. In the two-vehicle integration, each vehicle runs its own Follow the Gap controller and lap tracker. The secondary vehicle starts five metres ahead and applies a factor of 0.5 to its controller's speed command.
 
 ## 2. Code structure
 
