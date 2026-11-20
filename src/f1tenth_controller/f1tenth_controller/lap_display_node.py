@@ -42,13 +42,13 @@ class LapDisplay(Node):
     def draw(self):
         size = shutil.get_terminal_size(fallback=(78, 26))
         if self.latest is None:
-            panel = 'F1TENTH - ZANDVOORT\nEsperando datos de /laps/status...'
+            panel = 'F1TENTH - ZANDVOORT\nWaiting for /laps/status data...'
             summary = None
         else:
             stale = self.received is None or time.monotonic()-self.received > 2.
             panel = format_panel(self.latest, size.columns, size.lines-1 if stale else size.lines)
             if stale:
-                panel += '\nSIN DATOS RECIENTES: se muestra la ultima lectura'
+                panel += '\nSTALE DATA: showing the last received status'
             summary = (self.latest['state'], self.latest['paused'],
                        self.latest['lap_count'], self.latest['reason'], stale)
         if self.tty:

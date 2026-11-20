@@ -188,9 +188,9 @@ class LapTests(unittest.TestCase):
     def test_panel_contains_laps_times_and_invalid_state(self):
         self.circuit()
         panel = format_panel(self.counter.snapshot(), 80, 24)
-        self.assertIn('Vueltas completadas: 1 / 2', panel)
+        self.assertIn('Completed laps: 1 / 2', panel)
         self.assertIn('00:04.50', panel)
         self.status(5., state='collision', valid=False)
-        self.assertIn('INTENTO INVALIDO', format_panel(self.counter.snapshot()))
+        self.assertIn('INVALID ATTEMPT', format_panel(self.counter.snapshot()))
         self.assertEqual(format_time(59.999), '01:00.00')
         self.assertEqual(format_time(None), '--:--.--')
