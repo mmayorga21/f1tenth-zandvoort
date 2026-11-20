@@ -84,6 +84,13 @@ class SimulationSession:
         if (self.state != 'running' or self.valid is not True or self.paused
                 or self.completion_requested):
             return False
+        if not self.valid_finish(laps):
+            return False
+        self.completion_requested = True
+        return True
+
+    def valid_finish(self, laps):
+        """Require a fresh measurement even when the first car finished earlier."""
         if any(laps.get(k) != self.snapshot()[k]
                for k in ('run_id', 'session_id', 'attempt_id')):
             return False
@@ -97,7 +104,20 @@ class SimulationSession:
                 or type(stamp) is not int or stamp < 0
                 or not 0 <= self.time_ns-stamp <= 1_000_000_000):
             return False
+        return True
+
+    def request_joint_completion(self, measurements, vehicles, target):
+        if (self.state != 'running' or self.valid is not True or self.paused
+                or self.completion_requested or len(vehicles) != 2
+                or len(set(vehicles)) != 2 or type(target) is not int or target < 1):
+            return False
+        for vehicle in vehicles:
+            laps = measurements.get(vehicle, {})
+            if (laps.get('vehicle_id') != vehicle or laps.get('target_laps') != target
+                    or not self.valid_finish(laps)):
+                return False
         self.completion_requested = True
+        self.emit('both_targets_completed')
         return True
 
     def finish_if_stopped(self, speed):

@@ -137,6 +137,12 @@ class GapFollower(Node):
         decision = self.core.decide(scan.ranges, scan.angle_min, scan.angle_increment,
                                     scan.range_min, scan.range_max, min(dt, 0.05))
         self.last_decision = replace(decision, speed=decision.speed * self.speed_scale)
+        if self.gate.status.get('controlled_stopping'):
+            limit = self.gate.status['braking_speed_limit_mps']
+            if not math.isfinite(limit) or limit < 0:
+                self.stop('invalid_braking_limit')
+                return
+            self.last_decision = replace(self.last_decision, speed=min(self.last_decision.speed, limit))
         if decision.reason != 'following_gap':
             self.stop(decision.reason)
             return

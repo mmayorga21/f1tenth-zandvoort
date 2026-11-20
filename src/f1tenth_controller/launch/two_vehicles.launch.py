@@ -54,6 +54,7 @@ def launch_nodes(context):
             package='f1tenth_controller', executable='lap_tracker',
             name='lap_tracker', namespace=vehicle, output='screen',
             parameters=[{**laps, 'vehicle_id': vehicle, 'display': False,
+                         'target_laps': sim['target_laps'], 'stop_counting_at_target': True,
                          'gate_x': start[0], 'gate_y': start[1], 'gate_yaw': start[2],
                          'event_log_path': '~/.ros/f1tenth_zandvoort/' + vehicle + '_laps.jsonl'}],
             remappings=[('/ego_racecar/odom', '/' + vehicle + '/odom'),

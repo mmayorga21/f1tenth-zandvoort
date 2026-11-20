@@ -126,3 +126,24 @@ class SessionTests(unittest.TestCase):
         self.assertFalse(session.finish_if_stopped(0.))
         self.assertEqual(session.end_reason, 'collision')
         self.assertFalse(session.valid)
+
+    def test_joint_finish_requires_both_fresh_valid_targets(self):
+        session = SimulationSession(.01)
+        session.start()
+        measurements = {v: {**self.completion_status(session), 'vehicle_id': v} for v in ('ego', 'opp')}
+        self.assertFalse(session.request_joint_completion({'ego': measurements['ego']}, ('ego', 'opp'), 10))
+        self.assertFalse(session.completion_requested)
+        for change in [{'vehicle_id': 'ego'}, {'target_laps': 9}, {'lap_count': 9},
+                       {'session_id': 'old'}, {'measurement_valid': False},
+                       {'pause_used': True}, {'sim_time_ns': 10**12}]:
+            bad = {**measurements, 'opp': {**measurements['opp'], **change}}
+            self.assertFalse(session.request_joint_completion(bad, ('ego', 'opp'), 10), change)
+        # The first finisher's old notification must be refreshed, not latched forever.
+        for _ in range(101): session.step()
+        self.assertFalse(session.request_joint_completion(measurements, ('ego', 'opp'), 10))
+        for v in measurements: measurements[v]['sim_time_ns'] = session.time_ns
+        self.assertTrue(session.request_joint_completion(measurements, ('ego', 'opp'), 10))
+        self.assertFalse(session.finish_if_stopped(.1))
+        self.assertTrue(session.finish_if_stopped(0.))
+        self.assertTrue(session.valid)
+        self.assertEqual(session.end_reason, 'target_laps_completed')

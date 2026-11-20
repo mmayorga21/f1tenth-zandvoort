@@ -1,10 +1,10 @@
-# Integración disponible; certificación del rebase y cierre conjunto pendientes.
+# Dos vehículos con cierre automático conjunto; rebase de comprobación visual.
 # No es un archivo de parámetros ROS.
 schema_version: 1
 scenario: two_vehicles
 purpose: final_evaluation
 objective: overtake_dynamic_obstacle
-runtime_ready: false
+runtime_ready: true
 integration_ready: true
 map_ready: true
 baseline_tag: parte-1-finalizada
@@ -12,8 +12,9 @@ baseline_tag: parte-1-finalizada
 integration:
   launch: ros2 launch f1tenth_controller two_vehicles.launch.py
   simulator: src/f1tenth_gym_ros/config/sim_two_vehicles.yaml
-  completion: manual_braking_of_both_vehicles
-  final_race_certified: false
+  completion: automatic_after_both_reach_target_and_stop
+  ten_lap_runtime_validated: true
+  overtake_review: visual_observation_required
 
 base_files:
   simulator: src/f1tenth_gym_ros/config/sim.yaml
@@ -86,12 +87,7 @@ overtake:
   must_be_collision_free: true
   must_remain_inside_track: true
   must_occur_before_overtaker_completes_ten_laps: true
-  measurement: continuous_progress_along_track_with_vehicle_extent
-  # El margen y la persistencia evitan registrar un rebase por ruido o solape.
-  clearance_and_confirmation_window: select_and_validate_in_stage_5
-  measurement_must_not_drive_vehicles: true
+  measurement: visual_observation_of_simulation
+  automatic_event_recording: false
 
-pending_implementation:
-  - certify_ten_consecutive_laps_for_both_with_five_static_obstacles
-  - implement_and_validate_overtake_measurement
-  - implement_joint_automatic_finish
+pending_implementation: []

@@ -87,6 +87,8 @@ class GymBridge(Node):
         self.declare_parameter('event_log_path', '~/.ros/f1tenth_zandvoort/events.jsonl')
         self.declare_parameter('drive_timeout_s', 0.3)
         self.declare_parameter('opponent_start_offset_m', 0.0)
+        self.declare_parameter('target_laps', 10)
+        self.declare_parameter('stopping_deceleration_mps2', 6.0)
 
 
 
@@ -159,7 +161,10 @@ class GymBridge(Node):
             raise ValueError('drive_timeout_s must be positive')
         self.session = SimulationSession(float(self.env.unwrapped.timestep))
         self.manual_stop_requested = False
-        self.stopping_steers = (0., 0.)
+        self.target_laps = self.get_parameter('target_laps').value
+        self.stopping_deceleration = float(self.get_parameter('stopping_deceleration_mps2').value)
+        if type(self.target_laps) is not int or self.target_laps < 1 or not np.isfinite(self.stopping_deceleration) or self.stopping_deceleration <= 0:
+            raise ValueError('Lap target and stopping deceleration must be positive')
         self.start_poses = [list(self.ego_pose)] + ([list(self.opp_pose)] if self.has_opp else [])
         self.dual_gate = None
         if self.has_opp:
@@ -177,6 +182,7 @@ class GymBridge(Node):
         self.controller_metadata = None
         self.opponent_controller_metadata = None
         self.lap_statuses = {}
+        self.lap_status_received = {}
         self.controller_status_sub = self.create_subscription(
             String, '/' + self.ego_namespace + '/controller/status' if self.has_opp else '/controller/status',
             self.controller_status_callback, status_qos)
@@ -220,7 +226,9 @@ class GymBridge(Node):
             'num_agents': num_agents,
             'starting_poses': self.start_poses,
             'opponent_start_offset_m': float(self.get_parameter('opponent_start_offset_m').value),
-            'completion_policy': 'manual_integration' if self.has_opp else 'target_laps',
+            'completion_policy': 'all_vehicles_target_laps' if self.has_opp else 'target_laps',
+            'target_laps': self.target_laps,
+            'stopping_deceleration_mps2': self.stopping_deceleration,
             'code_sha256': hashlib.sha256(
                 Path(__file__).read_bytes() +
                 Path(__file__).with_name('simulation_session.py').read_bytes() +
@@ -283,7 +291,7 @@ class GymBridge(Node):
         self.publish_status()
 
     def drive_callback(self, drive_msg):
-        if not self.session.can_step or self.session.completion_requested or self.manual_stop_requested:
+        if not self.session.can_step or (self.session.completion_requested and not self.has_opp):
             return
         if self.has_opp and drive_msg.header.frame_id != self.ego_namespace + '/base_link':
             self.clear_commands()
@@ -309,7 +317,7 @@ class GymBridge(Node):
             self.dual_gate.on_drive(self.ego_namespace, self.last_drive_time_ns / 1e9)
 
     def opp_drive_callback(self, drive_msg):
-        if not self.session.can_step or self.session.completion_requested or self.manual_stop_requested:
+        if not self.session.can_step or (self.session.completion_requested and not self.has_opp):
             return
         if drive_msg.header.frame_id != self.opp_namespace + '/base_link':
             self.clear_commands()
@@ -389,6 +397,7 @@ class GymBridge(Node):
         if self.dual_gate is not None:
             self.dual_gate.reset((self.session.run_id, self.session.session_id))
             self.lap_statuses.clear()
+            self.lap_status_received.clear()
         self._update_sim_state()
         if self.ego_collision or (self.has_opp and self.opp_collision):
             self.session.mark_collision()
@@ -414,8 +423,6 @@ class GymBridge(Node):
 
     def end_callback(self, request, response):
         if self.has_opp and self.session.state == 'running':
-            self.stopping_steers = (self.ego_steer, self.opp_steer)
-            self.clear_commands()
             self.manual_stop_requested = True
             response.success = True
             response.message = 'Braking both vehicles before ending the attempt'
@@ -466,7 +473,15 @@ class GymBridge(Node):
                 if all(data.get(k) == self.session.snapshot()[k]
                        for k in ('run_id', 'session_id', 'attempt_id')):
                     self.lap_statuses[vehicle] = data
-                return  # Stage 6 adds joint automatic completion after both targets.
+                    self.lap_status_received[vehicle] = self.steady_clock.now().nanoseconds / 1e9
+                    if self.session.state == 'running' and data.get('measurement_valid') is False:
+                        self.clear_commands()
+                        self.session.abort(vehicle + '_lap_measurement_invalid')
+                        self.publish_status()
+                    elif self.session.request_joint_completion(self.lap_statuses,
+                            (self.ego_namespace, self.opp_namespace), self.target_laps):
+                        self.publish_status()
+                return
             if self.session.request_completion(data):
                 self.clear_commands()
                 self.publish_status()
@@ -481,12 +496,14 @@ class GymBridge(Node):
                          'controller': self.controller_metadata})
         if self.has_opp:
             snapshot['stopping_requested'] = self.manual_stop_requested
+            snapshot['controlled_stopping'] = (self.manual_stop_requested or self.session.completion_requested) and self.session.state == 'running'
             snapshot['any_collision'] = self.session.collision
             snapshot['awaiting_joint_start'] = self.session.state == 'ready' and not self.dual_gate.released
             snapshot['vehicles'] = self.vehicle_states()
             for vehicle, publisher in self.vehicle_status_pubs.items():
                 own = snapshot['vehicles'][vehicle]
-                status = {**snapshot, **own, 'vehicle_id': vehicle}
+                status = {**snapshot, **own, 'vehicle_id': vehicle,
+                          'braking_speed_limit_mps': self.braking_limit(own['velocity'][0])}
                 publisher.publish(String(data=json.dumps(status)))
             self.opp_collision_pub.publish(Bool(data=self.opp_collision))
         self.status_pub.publish(String(data=json.dumps(snapshot)))
@@ -516,8 +533,11 @@ class GymBridge(Node):
                 self.event_pub.publish(String(data=line))
         self.session.events.clear()
 
+    def braking_limit(self, speed):
+        return max(0., abs(speed)-self.stopping_deceleration*self.session.timestep)
+
     def drive_timer_callback(self):
-        if self.has_opp and self.session.can_step and not self.manual_stop_requested:
+        if self.has_opp and self.session.can_step:
             health = self.dual_gate.health(self.steady_clock.now().nanoseconds / 1e9, {
                 self.ego_namespace: self.count_publishers(self.ego_drive_sub.topic_name),
                 self.opp_namespace: self.count_publishers(self.opp_drive_sub.topic_name)})
@@ -533,6 +553,12 @@ class GymBridge(Node):
                 self.clear_commands()
                 self.session.abort(health)
                 self.publish_status()
+            if self.session.state == 'running' and self.session.snapshot()['elapsed_sim_s'] > 1.:
+                now = self.steady_clock.now().nanoseconds / 1e9
+                if any(now-self.lap_status_received.get(v, -np.inf) > 1. for v in (self.ego_namespace, self.opp_namespace)):
+                    self.clear_commands()
+                    self.session.abort('lap_status_timeout')
+                    self.publish_status()
         if (not self.has_opp and self.session.can_step and self.ego_requested_speed != 0.0
                 and self.last_drive_time_ns is not None
                 and (self.steady_clock.now().nanoseconds - self.last_drive_time_ns)/1e9
@@ -544,8 +570,9 @@ class GymBridge(Node):
             actions = [[self.ego_steer, self.ego_requested_speed]]
             if self.has_opp:
                 actions.append([self.opp_steer, self.opp_requested_speed])
-                if self.manual_stop_requested:
-                    actions = [[self.stopping_steers[0], 0.], [self.stopping_steers[1], 0.]]
+                if self.manual_stop_requested or self.session.completion_requested:
+                    actions[0][1] = min(actions[0][1], self.braking_limit(self.ego_speed[0]))
+                    actions[1][1] = min(actions[1][1], self.braking_limit(self.opp_speed[0]))
                 if self.session.state == 'ready':
                     actions = [[0., 0.], [0., 0.]]
             self.obs, _, self.done, _ = self.env.step(np.array(actions))
@@ -553,7 +580,9 @@ class GymBridge(Node):
             self.session.step(collision=self.ego_collision or (self.has_opp and self.opp_collision))
             if (self.has_opp and self.manual_stop_requested and self.session.state == 'running'
                     and max(abs(self.ego_speed[0]), abs(self.opp_speed[0])) < .02):
-                self.session.end()
+                self.session.end('target_laps_completed' if self.session.completion_requested else 'manual_stop')
+            if self.has_opp and self.session.completion_requested:
+                self.session.finish_if_stopped(max(abs(self.ego_speed[0]), abs(self.opp_speed[0])))
             if not self.has_opp:
                 self.session.finish_if_stopped(float(self.ego_speed[0]))
             if self.session.collision:

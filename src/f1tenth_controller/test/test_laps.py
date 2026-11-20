@@ -194,3 +194,28 @@ class LapTests(unittest.TestCase):
         self.assertIn('INVALID ATTEMPT', format_panel(self.counter.snapshot()))
         self.assertEqual(format_time(59.999), '01:00.00')
         self.assertEqual(format_time(None), '--:--.--')
+
+    def test_capped_results_survive_extra_driving_but_not_later_collision(self):
+        self.counter = LapCounter(replace(self.parameters, stop_counting_at_target=True))
+        self.status(0., state='ready'); self.status(0.); self.pose(0., 0., 0.)
+        self.circuit(); self.circuit(5.)
+        finished = self.counter.snapshot()
+        self.circuit(10.)
+        result = self.counter.snapshot()
+        for key in ('lap_count', 'lap_times_s', 'completed_time_s', 'best_lap_time_s', 'elapsed_sim_s'):
+            self.assertEqual(result[key], finished[key])
+        self.assertEqual(result['lap_count'], 2)
+        self.assertEqual(result['current_lap_time_s'], 0.)
+        self.assertEqual(result['sim_time_ns'], 15_000_000_000)
+        self.assertTrue(result['measurement_valid'])
+        self.status(15., state='collision', valid=False)
+        self.assertFalse(self.counter.snapshot()['target_reached'])
+        self.assertFalse(self.counter.valid)
+
+    def test_capped_counter_still_rejects_odometry_loss(self):
+        self.counter = LapCounter(replace(self.parameters, stop_counting_at_target=True))
+        self.status(0., state='ready'); self.status(0.); self.pose(0., 0., 0.)
+        self.circuit(); self.circuit(5.)
+        self.pose(20., 1., 0.)
+        self.assertFalse(self.counter.valid)
+        self.assertEqual(self.counter.reason, 'odometry_gap')

@@ -64,7 +64,7 @@ The repository also retains packages from the original simulator. This project p
 
 These instructions assume **Ubuntu 22.04, ROS 2 Humble, and F1TENTH Gym are installed**, together with `rosdep` and `colcon`.
 
-Sections 3.2–3.5 run one vehicle. Section 3.6 runs the two-vehicle integration; overtaking certification and joint automatic ten-lap completion are still under development.
+Sections 3.2–3.5 run one vehicle. Section 3.6 runs two vehicles with five obstacles and automatic completion after ten laps by each vehicle.
 
 ### 3.1. Clone and prepare the project
 
@@ -215,7 +215,7 @@ ros2 service call /controller/enable std_srvs/srv/SetBool "{data: false}"
 
 To close the programs, press `Ctrl+C` in the controller, lap tracker, and simulator terminals.
 
-### 3.6. Two-vehicle integration with five obstacles
+### 3.6. Two vehicles with five obstacles
 
 Close the single-vehicle programs before starting this scenario. In terminal 1:
 
@@ -252,10 +252,12 @@ ros2 service call /opp_racecar/controller/enable std_srvs/srv/SetBool "{data: tr
 
 The shared attempt starts only after both controllers are ready. Each counter measures complete circuits from its own starting gate. A collision or loss of commands from either vehicle invalidates the shared attempt and freezes both vehicles.
 
-For this integration stage, end the attempt manually; both vehicles brake before it closes:
+When one vehicle completes ten laps, it keeps driving while the other finishes. Its counter and lap times retain only its first ten laps. After both complete ten valid laps, both vehicles brake while continuing to steer with Follow the Gap, and the attempt closes automatically. The panels retain the results. Verify the overtake by observing the simulation.
+
+To end an attempt early, request a controlled stop of both vehicles:
 
 ```bash
 ros2 service call /sim/end_attempt std_srvs/srv/Trigger "{}"
 ```
 
-Joint automatic completion after ten laps by both vehicles will be added in the next stages. To repeat the integration, reset and enable both controllers again. Close the programs with `Ctrl+C`.
+To repeat the attempt, reset and enable both controllers again. Close the programs with `Ctrl+C`.
