@@ -1,8 +1,11 @@
-# Preparación para la etapa 2; todavía no se puede ejecutar este escenario.
-# No es un archivo de parámetros ROS. Los archivos base no contienen obstáculos.
+# Ensayo de desarrollo con un vehículo; la prueba final es two_vehicles.
+# Definición del escenario, no es un archivo de parámetros ROS.
 schema_version: 1
 scenario: static_obstacles
+purpose: development_only
+final_scenario: two_vehicles
 runtime_ready: false
+map_ready: true
 baseline_tag: parte-1-finalizada
 
 base_files:
@@ -11,6 +14,12 @@ base_files:
   lap_tracker: src/f1tenth_controller/config/lap_tracker.yaml
   map_image: src/f1tenth_gym_ros/maps/Zandvoort_map.png
   map_metadata: src/f1tenth_gym_ros/maps/Zandvoort_map.yaml
+
+map:
+  image: src/f1tenth_gym_ros/maps/Zandvoort_obstacles.png
+  metadata: src/f1tenth_gym_ros/maps/Zandvoort_obstacles.yaml
+  launch_argument: map_path
+  path_without_extension: src/f1tenth_gym_ros/maps/Zandvoort_obstacles
 
 vehicles:
   - id: ego_racecar
@@ -24,8 +33,64 @@ obstacles:
   must_leave_traversable_passage: true
   must_affect_lidar_and_collision_detection: true
   fixed_during_attempt: true
-  # Las cinco geometrías se elegirán en la etapa 2.
-  objects: []
+  geometry_source: user_provided_map
+  # Las cajas delimitan los píxeles añadidos; el PNG define la forma exacta.
+  objects:
+  - id: 1
+    geometry: occupied_map_pixels
+    pixel_bbox:
+    - 641
+    - 235
+    - 729
+    - 255
+    bbox_size_m:
+    - 4.49592
+    - 1.0218
+    added_occupied_pixels: 1449
+  - id: 2
+    geometry: occupied_map_pixels
+    pixel_bbox:
+    - 1717
+    - 799
+    - 1732
+    - 814
+    bbox_size_m:
+    - 0.7663500000000001
+    - 0.7663500000000001
+    added_occupied_pixels: 161
+  - id: 3
+    geometry: occupied_map_pixels
+    pixel_bbox:
+    - 1411
+    - 958
+    - 1556
+    - 980
+    bbox_size_m:
+    - 7.40805
+    - 1.12398
+    added_occupied_pixels: 2541
+  - id: 4
+    geometry: occupied_map_pixels
+    pixel_bbox:
+    - 465
+    - 1001
+    - 501
+    - 1019
+    bbox_size_m:
+    - 1.8392400000000002
+    - 0.9196200000000001
+    added_occupied_pixels: 616
+  - id: 5
+    geometry: occupied_map_pixels
+    pixel_bbox:
+    - 570
+    - 1295
+    - 595
+    - 1338
+    bbox_size_m:
+    - 1.27725
+    - 2.19687
+    added_occupied_pixels: 712
 
 acceptance:
   full_consecutive_laps_per_vehicle: 10
@@ -38,6 +103,4 @@ acceptance:
   overtakes_required: 0
 
 pending_implementation:
-  - select_five_obstacle_geometries
-  - generate_and_verify_obstacle_map
   - configure_and_validate_obstacle_controller_profile

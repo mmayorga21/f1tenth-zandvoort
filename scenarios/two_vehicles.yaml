@@ -2,7 +2,10 @@
 # No es un archivo de parámetros ROS. Los archivos base controlan un solo robot.
 schema_version: 1
 scenario: two_vehicles
+purpose: final_evaluation
+objective: overtake_dynamic_obstacle
 runtime_ready: false
+map_ready: true
 baseline_tag: parte-1-finalizada
 
 base_files:
@@ -12,12 +15,23 @@ base_files:
   map_image: src/f1tenth_gym_ros/maps/Zandvoort_map.png
   map_metadata: src/f1tenth_gym_ros/maps/Zandvoort_map.yaml
 
+map:
+  image: src/f1tenth_gym_ros/maps/Zandvoort_obstacles.png
+  metadata: src/f1tenth_gym_ros/maps/Zandvoort_obstacles.yaml
+  launch_argument: map_path
+  path_without_extension: src/f1tenth_gym_ros/maps/Zandvoort_obstacles
+
 vehicles:
   - id: ego_racecar
+    role: primary_vehicle
     algorithm: follow_the_gap
     start: simulator_ego_pose
   - id: opp_racecar
+    role: dynamic_obstacle
     algorithm: follow_the_gap
+    # Propuesta inicial; no impone la mitad de la velocidad real en cada instante.
+    nominal_speed_ratio_to_primary: 0.5
+    own_obstacle_and_corner_speed_limits: true
     start:
       relative_to: ego_racecar
       ahead_m: 5.0
@@ -25,14 +39,17 @@ vehicles:
       heading: same_direction
 
 obstacles:
-  count: 0
-  objects: []
+  count: 5
+  type: static
+  objects_from: scenarios/static_obstacles.yaml
+  fixed_during_attempt: true
 
-race:
+session:
   independent_controllers: true
   independent_lap_counters: true
   common_start: true
-  # Perfiles distintos permitidos; sus valores se elegirán al validar el rebase.
+  # El segundo vehículo facilita el alcance; no compite con el principal.
+  competitive_ranking: false
   different_speed_profiles_allowed: true
   invalidate_on_collision_of_any_vehicle: true
   invalidate_on_command_loss_of_any_vehicle: true
@@ -66,6 +83,7 @@ overtake:
   measurement_must_not_drive_vehicles: true
 
 pending_implementation:
+  - validate_both_controllers_with_five_static_obstacles
   - verify_five_meter_spawn_on_track
   - separate_controller_topics_and_services
   - add_per_vehicle_lap_and_collision_tracking
