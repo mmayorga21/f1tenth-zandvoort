@@ -1,5 +1,5 @@
 """ROS adapter for Follow the Gap; decisions use only the LaserScan."""
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 import hashlib
 import json
@@ -27,6 +27,12 @@ class GapFollower(Node):
             self.declare_parameter(name, value)
         parameters = GapParameters(**{k: self.get_parameter(k).value for k in defaults})
         self.core = FollowGap(parameters)
+        self.declare_parameter('speed_scale', 1.0)
+        self.declare_parameter('vehicle_id', 'ego_racecar')
+        self.speed_scale = float(self.get_parameter('speed_scale').value)
+        self.vehicle_id = self.get_parameter('vehicle_id').value
+        if not math.isfinite(self.speed_scale) or not 0 < self.speed_scale <= 1:
+            raise ValueError('speed_scale must be in (0, 1]')
         self.declare_parameter('scan_timeout_s', 0.3)
         self.declare_parameter('status_timeout_s', 0.5)
         self.declare_parameter('max_scan_age_s', 0.15)
@@ -51,16 +57,17 @@ class GapFollower(Node):
         self.configuration.update(scan_timeout_s=self.gate.scan_timeout,
                                   status_timeout_s=self.gate.status_timeout,
                                   max_scan_age_s=self.max_scan_age)
+        self.configuration.update(speed_scale=self.speed_scale, vehicle_id=self.vehicle_id)
         sources = [Path(__file__), Path(__file__).with_name('gap.py'),
                    Path(__file__).with_name('control_gate.py')]
         self.code_sha256 = hashlib.sha256(b''.join(p.read_bytes() for p in sources)).hexdigest()
         self.config_sha256 = hashlib.sha256(json.dumps(self.configuration, sort_keys=True).encode()).hexdigest()
-        self.get_logger().info('Follow the Gap ready, DISABLED. Use /controller/enable explicitly.')
+        self.get_logger().info('Follow the Gap ready, DISABLED. Enable through its controller service.')
 
     def publish_command(self, speed=0.0, steering=0.0):
         msg = AckermannDriveStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'ego_racecar/base_link'
+        msg.header.frame_id = self.vehicle_id + '/base_link'
         msg.drive.speed, msg.drive.steering_angle = float(speed), float(steering)
         self.drive.publish(msg)
 
@@ -86,7 +93,7 @@ class GapFollower(Node):
             self.stop('disabled_by_service')
             response.success = True
         else:
-            response.success = self.gate.enable(time.monotonic(), self.count_publishers('/drive'))
+            response.success = self.gate.enable(time.monotonic(), self.count_publishers(self.drive.topic_name))
             if response.success:
                 self.core.reset()
                 self.previous_stamp = None
@@ -95,7 +102,7 @@ class GapFollower(Node):
         return response
 
     def check_health(self):
-        reason = self.gate.health(time.monotonic(), self.count_publishers('/drive'))
+        reason = self.gate.health(time.monotonic(), self.count_publishers(self.drive.topic_name))
         if self.gate.armed and reason:
             self.stop(reason)
         elif not self.gate.armed:
@@ -112,9 +119,15 @@ class GapFollower(Node):
         self.gate.scan_received = time.monotonic()
         if not self.gate.armed:
             return
-        reason = self.gate.health(time.monotonic(), self.count_publishers('/drive'))
+        reason = self.gate.health(time.monotonic(), self.count_publishers(self.drive.topic_name))
         if reason:
             self.stop(reason)
+            return
+        if self.gate.status.get('awaiting_joint_start'):
+            self.core.reset()
+            self.previous_stamp = None
+            self.last_decision = Decision(reason='waiting_for_joint_start')
+            self.publish_command()
             return
         if self.previous_stamp is not None and stamp <= self.previous_stamp:
             self.stop('nonincreasing_scan_time')
@@ -123,11 +136,11 @@ class GapFollower(Node):
         self.previous_stamp = stamp
         decision = self.core.decide(scan.ranges, scan.angle_min, scan.angle_increment,
                                     scan.range_min, scan.range_max, min(dt, 0.05))
-        self.last_decision = decision
+        self.last_decision = replace(decision, speed=decision.speed * self.speed_scale)
         if decision.reason != 'following_gap':
             self.stop(decision.reason)
             return
-        self.publish_command(decision.speed, decision.steering)
+        self.publish_command(self.last_decision.speed, self.last_decision.steering)
 
     def publish_status(self):
         status = {'armed': self.gate.armed, 'reason': self.gate.reason,

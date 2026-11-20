@@ -6,7 +6,7 @@ from PIL import Image
 import pytest
 import yaml
 
-from map_footprint import MapFootprint
+from map_footprint import MapFootprint, rectangles_overlap
 
 
 @pytest.fixture
@@ -42,3 +42,10 @@ def test_touching_an_occupied_pixel_boundary_is_contact(footprint):
 def test_invalid_pose_and_map_boundary_are_rejected(footprint):
     assert footprint.collides(float('nan'), 5., 0.)
     assert footprint.collides(.1, .1, 0.)
+
+
+@pytest.mark.parametrize('other,expected', [
+    ([1., 0., 0.], False), ([.58, 0., 0.], True),
+    ([.3, .1, math.pi/2], True), ([.5, .5, math.pi/4], False)])
+def test_two_vehicle_body_contact(other, expected):
+    assert rectangles_overlap([0., 0., 0.], other, .58, .31) is expected

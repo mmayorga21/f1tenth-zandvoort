@@ -1,12 +1,19 @@
-# Preparación para las etapas 4 a 6; todavía no se puede ejecutar este escenario.
-# No es un archivo de parámetros ROS. Los archivos base controlan un solo robot.
+# Integración disponible; certificación del rebase y cierre conjunto pendientes.
+# No es un archivo de parámetros ROS.
 schema_version: 1
 scenario: two_vehicles
 purpose: final_evaluation
 objective: overtake_dynamic_obstacle
 runtime_ready: false
+integration_ready: true
 map_ready: true
 baseline_tag: parte-1-finalizada
+
+integration:
+  launch: ros2 launch f1tenth_controller two_vehicles.launch.py
+  simulator: src/f1tenth_gym_ros/config/sim_two_vehicles.yaml
+  completion: manual_braking_of_both_vehicles
+  final_race_certified: false
 
 base_files:
   simulator: src/f1tenth_gym_ros/config/sim.yaml
@@ -85,10 +92,6 @@ overtake:
   measurement_must_not_drive_vehicles: true
 
 pending_implementation:
-  - validate_both_controllers_with_five_static_obstacles
-  - verify_five_meter_spawn_on_track
-  - separate_controller_topics_and_services
-  - add_per_vehicle_lap_and_collision_tracking
-  - monitor_both_command_streams
+  - certify_ten_consecutive_laps_for_both_with_five_static_obstacles
   - implement_and_validate_overtake_measurement
   - implement_joint_automatic_finish

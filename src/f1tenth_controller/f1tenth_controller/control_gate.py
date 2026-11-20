@@ -23,6 +23,8 @@ class ControlGate:
             self.identity = identity
             self.scan_received = -math.inf
         self.status, self.status_received = status, now
+        if status.get('stopping_requested'):
+            self.disarm('manual_stop')
         if status.get('completion_requested'):
             self.disarm('target_laps_completed')
         if status['paused'] or status['state'] not in ('ready', 'running') or status['ego_collision']:
@@ -33,6 +35,8 @@ class ControlGate:
             return 'another_drive_publisher'
         if self.status is None or now-self.status_received > self.status_timeout:
             return 'stale_simulator_status'
+        if self.status.get('stopping_requested'):
+            return 'manual_stop'
         if self.status.get('completion_requested'):
             return 'target_laps_completed'
         if (self.status['paused'] or self.status['state'] not in ('ready', 'running')

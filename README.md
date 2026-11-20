@@ -6,7 +6,7 @@ This project uses Follow the Gap, a reactive navigation algorithm that selects t
 
 The controller processes the readings, adds a safety margin around obstacles, and identifies contiguous areas of free space. It selects a target within the chosen gap and steers towards it. Speed is adjusted to the required turn and the available clearance ahead.
 
-The vehicle responds to the observed surroundings without following a predefined driving trajectory. A separate lap tracker uses odometry to count complete circuits and measure lap times.
+The vehicle responds to the observed surroundings without following a predefined driving trajectory. A separate lap tracker uses odometry to count complete circuits and measure lap times. In the two-vehicle integration, each vehicle runs its own Follow the Gap controller and lap tracker. The secondary vehicle starts five metres ahead and applies a factor of 0.5 to its controller's speed command.
 
 ## 2. Code structure
 
@@ -35,11 +35,14 @@ F1Tenth-Repository/
     │   │   ├── lap_panel.py          # Terminal lap and timing display
     │   │   ├── lap_display_node.py   # Additional read-only terminal viewer
     │   │   └── session_guard.py      # Attempt validation checks
-    │   ├── launch/                   # Launch files
+    │   ├── launch/
+    │   │   ├── follow_the_gap.launch.py # Single-vehicle controller
+    │   │   └── two_vehicles.launch.py  # Simulator, two controllers and counters
     │   └── test/                     # Controller and lap counter tests
     └── f1tenth_gym_ros/
         ├── config/
-        │   └── sim.yaml             # Simulator configuration
+        │   ├── sim.yaml             # Single-vehicle simulator configuration
+        │   └── sim_two_vehicles.yaml # Two vehicles and five static obstacles
         ├── maps/
         │   ├── Zandvoort_map.png     # Original track image
         │   ├── Zandvoort_map.yaml    # Original map resolution and origin
@@ -47,10 +50,12 @@ F1Tenth-Repository/
         │   └── Zandvoort_obstacles.yaml # Obstacle map metadata
         ├── f1tenth_gym_ros/
         │   ├── gym_bridge.py         # Simulator integration with ROS
+        │   ├── dual_control.py       # Shared start and command freshness checks
         │   └── simulation_session.py # Attempt states and termination
         └── launch/
             ├── gym_bridge_launch.py # Simulator and RViz launch file
-            └── gym_bridge.rviz      # Visualization settings
+            ├── gym_bridge.rviz      # Single-vehicle visualization settings
+            └── two_vehicles.rviz    # Map, two vehicles and independent LiDARs
 ```
 
 The repository also retains packages from the original simulator. This project primarily uses `f1tenth_controller` and `f1tenth_gym_ros`.
@@ -59,7 +64,7 @@ The repository also retains packages from the original simulator. This project p
 
 These instructions assume **Ubuntu 22.04, ROS 2 Humble, and F1TENTH Gym are installed**, together with `rosdep` and `colcon`.
 
-The following steps run one vehicle. The two-vehicle overtaking scenario is still under development.
+Sections 3.2–3.5 run one vehicle. Section 3.6 runs the two-vehicle integration; overtaking certification and joint automatic ten-lap completion are still under development.
 
 ### 3.1. Clone and prepare the project
 
@@ -209,3 +214,48 @@ ros2 service call /controller/enable std_srvs/srv/SetBool "{data: false}"
 ```
 
 To close the programs, press `Ctrl+C` in the controller, lap tracker, and simulator terminals.
+
+### 3.6. Two-vehicle integration with five obstacles
+
+Close the single-vehicle programs before starting this scenario. In terminal 1:
+
+```bash
+cd ~/F1Tenth-Repository
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch f1tenth_controller two_vehicles.launch.py
+```
+
+This launches the obstacle map, RViz, both controllers and both lap trackers. Both controllers start disabled. The primary uses `obstacles.yaml`, with a 12 m/s speed limit; the secondary uses the same profile with its speed command multiplied by 0.5. Actual speed depends on each vehicle's LiDAR readings and turns.
+
+Open terminals 2 and 3, source the same environment, then start one read-only lap display in each:
+
+```bash
+# Terminal 2: primary vehicle
+ros2 run f1tenth_controller lap_display --ros-args \
+  -r __ns:=/ego_racecar -r /laps/status:=/ego_racecar/laps/status
+```
+
+```bash
+# Terminal 3: secondary vehicle
+ros2 run f1tenth_controller lap_display --ros-args \
+  -r __ns:=/opp_racecar -r /laps/status:=/opp_racecar/laps/status
+```
+
+In another terminal with the same environment, reset and enable both controllers:
+
+```bash
+ros2 service call /sim/reset std_srvs/srv/Trigger "{}"
+ros2 service call /ego_racecar/controller/enable std_srvs/srv/SetBool "{data: true}"
+ros2 service call /opp_racecar/controller/enable std_srvs/srv/SetBool "{data: true}"
+```
+
+The shared attempt starts only after both controllers are ready. Each counter measures complete circuits from its own starting gate. A collision or loss of commands from either vehicle invalidates the shared attempt and freezes both vehicles.
+
+For this integration stage, end the attempt manually; both vehicles brake before it closes:
+
+```bash
+ros2 service call /sim/end_attempt std_srvs/srv/Trigger "{}"
+```
+
+Joint automatic completion after ten laps by both vehicles will be added in the next stages. To repeat the integration, reset and enable both controllers again. Close the programs with `Ctrl+C`.

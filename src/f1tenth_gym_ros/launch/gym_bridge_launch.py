@@ -22,6 +22,7 @@
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.conditions import IfCondition
 from launch_ros.actions import Node
 from launch.substitutions import Command, LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
@@ -34,21 +35,30 @@ def generate_launch_description():
         'config',
         'sim.yaml'
         )
-    with open(config) as stream:
-        config_dict = yaml.safe_load(stream)
     return LaunchDescription([
+        DeclareLaunchArgument('config_file', default_value=config,
+                              description='Simulator parameter YAML'),
         DeclareLaunchArgument(
-            'map_path', default_value=config_dict['bridge']['ros__parameters']['map_path'],
-            description='Map path without PNG or YAML extension'),
-        OpaqueFunction(function=launch_nodes, kwargs={'config': config}),
+            'map_path', default_value='',
+            description='Map path without extension; empty uses the simulator configuration'),
+        DeclareLaunchArgument('rviz', default_value='true', description='Open RViz'),
+        DeclareLaunchArgument('rviz_config', default_value=os.path.join(
+            get_package_share_directory('f1tenth_gym_ros'), 'launch', 'gym_bridge.rviz')),
+        OpaqueFunction(function=launch_nodes),
     ])
 
 
-def launch_nodes(context, config):
+def launch_nodes(context):
     ld = LaunchDescription()
+    config = LaunchConfiguration('config_file').perform(context)
     with open(config) as stream:
         config_dict = yaml.safe_load(stream)
-    map_path = os.path.abspath(os.path.expanduser(LaunchConfiguration('map_path').perform(context)))
+    selected_map = (LaunchConfiguration('map_path').perform(context)
+                    or config_dict['bridge']['ros__parameters']['map_path'])
+    selected_map = os.path.expanduser(selected_map)
+    if not os.path.isabs(selected_map):
+        selected_map = os.path.join(get_package_share_directory('f1tenth_gym_ros'), 'maps', selected_map)
+    map_path = os.path.abspath(selected_map)
     extension = config_dict['bridge']['ros__parameters']['map_img_ext']
     for path in (map_path + '.yaml', map_path + extension):
         if not os.path.isfile(path):
@@ -67,11 +77,12 @@ def launch_nodes(context, config):
         parameters=[config, {'use_sim_time': False, 'map_path': map_path}]
     )
     rviz_node = Node(
+        condition=IfCondition(LaunchConfiguration('rviz')),
         package='rviz2',
         executable='rviz2',
         name='rviz',
         parameters=[{'use_sim_time': True}],
-        arguments=['-d', os.path.join(get_package_share_directory('f1tenth_gym_ros'), 'launch', 'gym_bridge.rviz')]
+        arguments=['-d', LaunchConfiguration('rviz_config')]
     )
     map_server_node = Node(
         package='nav2_map_server',

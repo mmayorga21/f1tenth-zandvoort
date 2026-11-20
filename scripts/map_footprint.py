@@ -7,6 +7,20 @@ from PIL import Image
 import yaml
 
 
+def rectangles_overlap(pose_a, pose_b, length, width):
+    """Separating-axis test for two vehicle bodies at the same physics time."""
+    xa, ya, aa = pose_a
+    xb, yb, ab = pose_b
+    axes_a = [(math.cos(aa), math.sin(aa)), (-math.sin(aa), math.cos(aa))]
+    axes_b = [(math.cos(ab), math.sin(ab)), (-math.sin(ab), math.cos(ab))]
+    for ax, ay in axes_a + axes_b:
+        ra = length/2*abs(ax*axes_a[0][0]+ay*axes_a[0][1]) + width/2*abs(ax*axes_a[1][0]+ay*axes_a[1][1])
+        rb = length/2*abs(ax*axes_b[0][0]+ay*axes_b[0][1]) + width/2*abs(ax*axes_b[1][0]+ay*axes_b[1][1])
+        if abs((xb-xa)*ax+(yb-ya)*ay) > ra+rb:
+            return False
+    return True
+
+
 class MapFootprint:
     def __init__(self, map_path, length, width):
         path = Path(map_path).with_suffix('.yaml')

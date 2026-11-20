@@ -104,3 +104,11 @@ class GateTests(unittest.TestCase):
         self.assertFalse(gate.armed)
         self.assertEqual(gate.reason, 'target_laps_completed')
         self.assertFalse(gate.enable(.01, 1))
+
+    def test_shared_braking_disarms_and_blocks_reenable(self):
+        gate, status = self.ready()
+        self.assertTrue(gate.enable(0., 1))
+        gate.on_status({**status, 'stopping_requested': True}, .01)
+        self.assertFalse(gate.armed)
+        self.assertEqual(gate.reason, 'manual_stop')
+        self.assertFalse(gate.enable(.01, 1))
