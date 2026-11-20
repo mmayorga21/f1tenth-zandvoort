@@ -25,10 +25,12 @@ vehicles:
   - id: ego_racecar
     role: primary_vehicle
     algorithm: follow_the_gap
+    controller_parameters: src/f1tenth_controller/config/obstacles.yaml
     start: simulator_ego_pose
   - id: opp_racecar
     role: dynamic_obstacle
     algorithm: follow_the_gap
+    controller_parameters_base: src/f1tenth_controller/config/obstacles.yaml
     # Propuesta inicial; no impone la mitad de la velocidad real en cada instante.
     nominal_speed_ratio_to_primary: 0.5
     own_obstacle_and_corner_speed_limits: true

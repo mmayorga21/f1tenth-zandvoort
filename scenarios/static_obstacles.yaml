@@ -4,7 +4,7 @@ schema_version: 1
 scenario: static_obstacles
 purpose: development_only
 final_scenario: two_vehicles
-runtime_ready: false
+runtime_ready: true
 map_ready: true
 baseline_tag: parte-1-finalizada
 
@@ -25,6 +25,9 @@ vehicles:
   - id: ego_racecar
     algorithm: follow_the_gap
     start: simulator_ego_pose
+
+controller_profiles:
+  ego_racecar: src/f1tenth_controller/config/obstacles.yaml
 
 obstacles:
   count: 5
@@ -102,5 +105,4 @@ acceptance:
   finish_when: all_vehicles_complete
   overtakes_required: 0
 
-pending_implementation:
-  - configure_and_validate_obstacle_controller_profile
+pending_implementation: []

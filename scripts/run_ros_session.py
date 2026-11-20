@@ -4,6 +4,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 from pathlib import Path
 import time
 
@@ -17,6 +18,7 @@ from std_srvs.srv import SetBool, Trigger
 
 from f1tenth_controller.session_guard import SessionGuard, SessionError
 from lap_validation import LapValidation
+from map_footprint import MapFootprint
 
 
 def write_report(path, report):
@@ -43,6 +45,7 @@ def main():
     latest, received, events, references, progress = {}, {}, [], [], []
     phase, start_ns = 'initializing', None
     reference = None
+    footprint = None
     report = {'result': 'interrupted', 'mode': 'complete_ros_system',
               'requested_laps': args.laps,
               'started_at_utc': datetime.now(timezone.utc).isoformat()}
@@ -67,13 +70,19 @@ def main():
 
     def on_pose(msg):
         nonlocal reference
-        if phase not in ('starting', 'running') or start_ns is None or reference is None:
+        if phase not in ('starting', 'running', 'stopping') or start_ns is None or reference is None:
             return
         stamp = msg.header.stamp.sec*1_000_000_000+msg.header.stamp.nanosec
         elapsed = (stamp-start_ns)/1e9
         if elapsed < 0:
             return
         point = msg.pose.pose.position
+        orientation = msg.pose.pose.orientation
+        yaw = math.atan2(
+            2*(orientation.w*orientation.z + orientation.x*orientation.y),
+            1-2*(orientation.y**2 + orientation.z**2))
+        if footprint is not None and footprint.collides(point.x, point.y, yaw):
+            raise SessionError('map_footprint_collision')
         if reference.update(point.x, point.y, elapsed):
             references.append({'number': len(references)+1, 'finish_sample_sim_s': elapsed,
                                'route': reference.summary()})
@@ -117,6 +126,7 @@ def main():
         report.update(result=result, error=error, last_status=latest.copy(),
                       lap_progress=progress.copy(), independent_crossings=references.copy(),
                       wall_elapsed_s=time.monotonic()-wall_start,
+                      footprint_samples=0 if footprint is None else footprint.samples,
                       updated_at_utc=datetime.now(timezone.utc).isoformat())
         write_report(output, report)
 
@@ -134,6 +144,9 @@ def main():
         if latest['laps']['lap_count'] != 0:
             raise SessionError('counter_not_reset')
         reference = make_reference()
+        config = latest['sim']['configuration']
+        footprint = MapFootprint(config['map_path'], config['vehicle_parameters']['length'],
+                                 config['vehicle_parameters']['width'])
         phase = 'starting'
         call('enable', True)
         wait_for(lambda: latest['sim']['state'] == 'running' and latest['laps']['state'] == 'running'
@@ -145,6 +158,8 @@ def main():
         root = Path(__file__).resolve().parents[1]
         report['supervisor_sha256'] = hashlib.sha256(
             Path(__file__).read_bytes() +
+            (root/'scripts/map_footprint.py').read_bytes() +
+            (root/'scripts/lap_validation.py').read_bytes() +
             (root/'src/f1tenth_controller/f1tenth_controller/session_guard.py').read_bytes()).hexdigest()
         phase = 'running'
         previous_count, previous_print = 0, 0.

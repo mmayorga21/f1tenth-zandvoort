@@ -19,6 +19,7 @@ from f1tenth_controller.gap import FollowGap, GapParameters
 from f1tenth_controller.laps import LapCounter, LapParameters
 from f1tenth_gym_ros.simulation_session import SimulationSession
 from lap_validation import LapValidation
+from map_footprint import MapFootprint
 
 
 def write_report(path, report):
@@ -33,6 +34,7 @@ def main():
     parser.add_argument('--seed', type=int, default=12345)
     parser.add_argument('--output', required=True)
     parser.add_argument('--config', default=str(ROOT/'src/f1tenth_controller/config/follow_the_gap.yaml'))
+    parser.add_argument('--map-path', help='Map path without image or YAML extension')
     args = parser.parse_args()
     if args.laps < 1 or args.seed < 0:
         parser.error('laps must be positive and seed nonnegative')
@@ -51,10 +53,17 @@ def main():
     counter = LapCounter(LapParameters(**values))
     controller = FollowGap(gap_parameters)
     sim = yaml.safe_load((ROOT/'src/f1tenth_gym_ros/config/sim.yaml').read_text())['bridge']['ros__parameters']
+    if args.map_path:
+        sim['map_path'] = str(Path(args.map_path).expanduser().resolve())
     start = [sim[key] for key in ('sx', 'sy', 'stheta')]
     env = gym.make('f110_gym:f110-v0', map=sim['map_path'], map_ext=sim['map_img_ext'],
                    num_agents=1, seed=args.seed)
     obs, _, _, _ = env.reset(np.array([start]))
+    footprint = MapFootprint(sim['map_path'], env.unwrapped.params['length'],
+                             env.unwrapped.params['width'])
+    footprint_collision = footprint.collides(*start)
+    if footprint_collision:
+        raise ValueError('Vehicle footprint overlaps the map at the initial pose')
     assert len(obs['scans'][0]) == sim['scan_beams']
     dt = float(env.unwrapped.timestep)
     source = SimulationSession(dt)
@@ -64,6 +73,8 @@ def main():
     wall_start = time.monotonic()
     result, failure = 'running', None
     report = {'mode': 'direct_f110_gym', 'seed': args.seed, 'target_laps': args.laps,
+              'map_path': sim['map_path'],
+              'footprint_checker_sha256': hashlib.sha256((ROOT/'scripts/map_footprint.py').read_bytes()).hexdigest(),
               'gap_parameters': asdict(gap_parameters),
               'gap_config_sha256': hashlib.sha256(gap_file.read_bytes()).hexdigest(),
               'map_image_sha256': hashlib.sha256(Path(sim['map_path']+sim['map_img_ext']).read_bytes()).hexdigest(),
@@ -85,6 +96,8 @@ def main():
             # the termination signal; our own counter validates full laps.
             obs, _, _, _ = env.step(np.array([[command.steering, command.speed]]))
             collision = bool(obs['collisions'][0])
+            footprint_collision = footprint.collides(
+                float(obs['poses_x'][0]), float(obs['poses_y'][0]), float(obs['poses_theta'][0]))
             source.step(collision=collision)
             counter.on_status(source.snapshot())
             x, y = float(obs['poses_x'][0]), float(obs['poses_y'][0])
@@ -93,8 +106,8 @@ def main():
             if step % 50 == 0:
                 rows.append({'sim_time_s': source.time_ns/1e9, 'x': x, 'y': y,
                              'lap_count': len(counter.laps)})
-            if collision or counter.valid is not True:
-                failure = counter.reason
+            if collision or footprint_collision or counter.valid is not True:
+                failure = 'map_footprint_collision' if footprint_collision else counter.reason
                 break
             if len(counter.laps) != last_count:
                 assert len(counter.laps) == last_count+1 and reference.complete
@@ -126,6 +139,7 @@ def main():
     finally:
         report.update(result=result, failure=failure, measurement=counter.snapshot(),
                       collision=bool(obs['collisions'][0]),
+                      footprint_collision=footprint_collision, footprint_samples=footprint.samples,
                       reference_finishes_sim_s=reference_finishes,
                       wall_elapsed_s=time.monotonic()-wall_start, trajectory=rows,
                       final_pose=[float(obs[k][0]) for k in ('poses_x','poses_y','poses_theta')],
