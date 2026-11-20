@@ -46,6 +46,7 @@ def main():
     phase, start_ns = 'initializing', None
     reference = None
     footprint = None
+    peak_actual_speed = 0.0
     report = {'result': 'interrupted', 'mode': 'complete_ros_system',
               'requested_laps': args.laps,
               'started_at_utc': datetime.now(timezone.utc).isoformat()}
@@ -69,7 +70,7 @@ def main():
         return value
 
     def on_pose(msg):
-        nonlocal reference
+        nonlocal reference, peak_actual_speed
         if phase not in ('starting', 'running', 'stopping') or start_ns is None or reference is None:
             return
         stamp = msg.header.stamp.sec*1_000_000_000+msg.header.stamp.nanosec
@@ -77,6 +78,7 @@ def main():
         if elapsed < 0:
             return
         point = msg.pose.pose.position
+        peak_actual_speed = max(peak_actual_speed, abs(msg.twist.twist.linear.x))
         orientation = msg.pose.pose.orientation
         yaw = math.atan2(
             2*(orientation.w*orientation.z + orientation.x*orientation.y),
@@ -127,6 +129,7 @@ def main():
                       lap_progress=progress.copy(), independent_crossings=references.copy(),
                       wall_elapsed_s=time.monotonic()-wall_start,
                       footprint_samples=0 if footprint is None else footprint.samples,
+                      peak_actual_speed_mps=peak_actual_speed,
                       updated_at_utc=datetime.now(timezone.utc).isoformat())
         write_report(output, report)
 
@@ -164,7 +167,7 @@ def main():
         phase = 'running'
         previous_count, previous_print = 0, 0.
         checkpoint()
-        print('SESION ROS INICIADA: '+str(args.laps)+' vueltas, sin pausas ni reinicios.', flush=True)
+        print('ROS SESSION STARTED: '+str(args.laps)+' laps, without pauses or resets.', flush=True)
         while time.monotonic()-wall_start < wall_limit:
             spin(.05)
             reached = guard.observe(latest['sim'], latest['laps'], latest['controller'],

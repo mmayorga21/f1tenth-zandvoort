@@ -81,6 +81,7 @@ def main():
               'controller_core_sha256': hashlib.sha256((ROOT/'src/f1tenth_controller/f1tenth_controller/gap.py').read_bytes()).hexdigest(),
               'counter_core_sha256': hashlib.sha256((ROOT/'src/f1tenth_controller/f1tenth_controller/laps.py').read_bytes()).hexdigest()}
     last_count = 0
+    peak_actual_speed = peak_commanded_speed = 0.0
     try:
         for step in range(int((args.laps*400.+10.)/dt)):
             command = controller.decide(obs['scans'][0], -sim['scan_fov']/2,
@@ -95,6 +96,8 @@ def main():
             # Native done also includes its short lap heuristic. Collision is
             # the termination signal; our own counter validates full laps.
             obs, _, _, _ = env.step(np.array([[command.steering, command.speed]]))
+            peak_commanded_speed = max(peak_commanded_speed, command.speed)
+            peak_actual_speed = max(peak_actual_speed, abs(float(obs['linear_vels_x'][0])))
             collision = bool(obs['collisions'][0])
             footprint_collision = footprint.collides(
                 float(obs['poses_x'][0]), float(obs['poses_y'][0]), float(obs['poses_theta'][0]))
@@ -140,6 +143,8 @@ def main():
         report.update(result=result, failure=failure, measurement=counter.snapshot(),
                       collision=bool(obs['collisions'][0]),
                       footprint_collision=footprint_collision, footprint_samples=footprint.samples,
+                      peak_actual_speed_mps=peak_actual_speed,
+                      peak_commanded_speed_mps=peak_commanded_speed,
                       reference_finishes_sim_s=reference_finishes,
                       wall_elapsed_s=time.monotonic()-wall_start, trajectory=rows,
                       final_pose=[float(obs[k][0]) for k in ('poses_x','poses_y','poses_theta')],
