@@ -60,8 +60,6 @@ def format_panel(status, width=78, height=26):
         f'Checkpoints passed: {status["checkpoints_passed"]} / {status["checkpoint_count"]}',
         '', '   LAP       TIME',
     ]
-    if status.get('vehicle_id'):
-        lines[0] = 'F1TENTH - ZANDVOORT | ' + status['vehicle_id'] + ' | LAP TIMER'
     available = max(1, height-len(lines)-3)
     times = status['lap_times_s']
     start = max(0, len(times)-available)
@@ -70,12 +68,7 @@ def format_panel(status, width=78, height=26):
     else:
         for index in range(start, len(times)):
             lines.append(f'{index+1:>6}       {format_time(times[index])}')
-    reason = REASONS.get(status['reason'], status['reason'])
-    if status['state'] == 'ready' and status.get('awaiting_joint_start'):
-        reason = 'Enable both controllers to start together'
-    elif status.get('vehicle_id') and status['state'] == 'running' and status['target_reached']:
-        reason = 'Target completed; continuing until both vehicles finish'
-    lines += ['', reason]
+    lines += ['', REASONS.get(status['reason'], status['reason'])]
     if status['pause_used']:
         lines.append('This attempt was paused')
     return '\n'.join(line[:max(20, width)] for line in lines[:max(12, height)])

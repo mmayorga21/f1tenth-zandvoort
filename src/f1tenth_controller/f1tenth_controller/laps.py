@@ -15,7 +15,6 @@ class LapParameters:
     max_position_speed_mps: float = 25.0
     position_slack_m: float = 0.2
     target_laps: int = 10
-    stop_counting_at_target: bool = False
     checkpoints: tuple = ((15., 29., 5.), (73., -4., 6.), (57., -29., 5.),
                           (48., -21., 3.), (60., -12., 5.), (1., -42., 7.))
 
@@ -64,9 +63,6 @@ class LapCounter:
 
     def snapshot(self):
         measurement_time = self.now_ns if self.invalid_at_ns is None else self.invalid_at_ns
-        capped = self.p.stop_counting_at_target and len(self.laps) >= self.p.target_laps
-        if capped:
-            measurement_time = min(measurement_time, self.laps[-1]['finish_sim_time_ns'])
         elapsed = 0 if self.start_ns is None else max(0, measurement_time-self.start_ns)
         current = 0 if self.lap_start_ns is None else max(0, measurement_time-self.lap_start_ns)
         times = [lap['duration_s'] for lap in self.laps]
@@ -185,9 +181,6 @@ class LapCounter:
         if segment > self.p.max_position_speed_mps*dt+self.p.position_slack_m:
             self.invalidate('position_jump')
             return
-        if self.p.stop_counting_at_target and len(self.laps) >= self.p.target_laps:
-            self.previous = (stamp, x, y)
-            return  # Keep checking odometry while retaining only the target lap times.
         self.distance_m += segment
         if self.next_checkpoint < len(self.p.checkpoints):
             cx, cy, radius = self.p.checkpoints[self.next_checkpoint]

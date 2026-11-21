@@ -37,7 +37,6 @@ class LapTracker(Node):
         declare_fixed('data_timeout_s', 1.0)
         declare_fixed('expected_frame', 'map')
         declare_fixed('display', True)
-        declare_fixed('vehicle_id', '')
         declare_fixed('event_log_path', '~/.ros/f1tenth_zandvoort/laps.jsonl')
         values = {name: self.get_parameter(name).value for name in defaults}
         regions = self.get_parameter('checkpoint_regions').value
@@ -59,9 +58,6 @@ class LapTracker(Node):
         self.latest_source = {}
         self.configuration = asdict(self.counter.p)
         self.configuration.update(data_timeout_s=self.timeout, expected_frame=self.expected_frame)
-        self.vehicle_id = self.get_parameter('vehicle_id').value
-        if self.vehicle_id:
-            self.configuration['vehicle_id'] = self.vehicle_id
         files = [Path(__file__), Path(__file__).with_name('laps.py'),
                  Path(__file__).with_name('lap_panel.py')]
         self.code_sha256 = hashlib.sha256(b''.join(p.read_bytes() for p in files)).hexdigest()
@@ -138,8 +134,6 @@ class LapTracker(Node):
                          configuration=self.configuration, code_sha256=self.code_sha256,
                          simulator_configuration=self.latest_source.get('configuration'),
                          controller=self.latest_source.get('controller'))
-            if self.vehicle_id:
-                event['vehicle_id'] = self.vehicle_id
             line = json.dumps(event)
             self.log.write(line+'\n')
             if publish:
@@ -156,9 +150,6 @@ class LapTracker(Node):
         self.flush_events()
         status = self.counter.snapshot()
         status.update(configuration=self.configuration, code_sha256=self.code_sha256)
-        if self.vehicle_id:
-            status['vehicle_id'] = self.vehicle_id
-            status['awaiting_joint_start'] = self.latest_source.get('awaiting_joint_start', False)
         self.publisher.publish(String(data=json.dumps(status)))
         if self.display:
             size = shutil.get_terminal_size(fallback=(78, 26))

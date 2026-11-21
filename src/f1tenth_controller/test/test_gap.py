@@ -104,24 +104,3 @@ class GateTests(unittest.TestCase):
         self.assertFalse(gate.armed)
         self.assertEqual(gate.reason, 'target_laps_completed')
         self.assertFalse(gate.enable(.01, 1))
-
-    def test_shared_braking_disarms_and_blocks_reenable(self):
-        gate, status = self.ready()
-        self.assertTrue(gate.enable(0., 1))
-        gate.on_status({**status, 'stopping_requested': True}, .01)
-        self.assertFalse(gate.armed)
-        self.assertEqual(gate.reason, 'manual_stop')
-        self.assertFalse(gate.enable(.01, 1))
-
-    def test_controlled_braking_keeps_steering_active_until_terminal_state(self):
-        gate, status = self.ready()
-        self.assertTrue(gate.enable(0., 1))
-        braking = {**status, 'controlled_stopping': True, 'completion_requested': True,
-                   'stopping_requested': True}
-        gate.on_status(braking, .01)
-        self.assertTrue(gate.armed)
-        self.assertIsNone(gate.health(.01, 1))
-        # Braking does not bypass stale-drive, pause or collision protection.
-        self.assertEqual(gate.health(.4, 1), 'stale_scan')
-        gate.on_status({**braking, 'state': 'ended'}, .02)
-        self.assertFalse(gate.armed)
