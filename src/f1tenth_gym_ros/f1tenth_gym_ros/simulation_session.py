@@ -4,6 +4,26 @@ import math
 from uuid import uuid4
 
 
+def finish_speed_limit(pose, laps, deceleration=6.0):
+    """Brake on the final straight, stopping just beyond the finish gate."""
+    if (laps.get('lap_count') != laps.get('target_laps', 0)-1
+            or not laps.get('checkpoint_count')
+            or laps.get('checkpoints_passed') != laps['checkpoint_count']):
+        return math.inf
+    config = laps['configuration']
+    yaw = config['gate_yaw']
+    dx, dy = pose[0]-config['gate_x'], pose[1]-config['gate_y']
+    along = dx*math.cos(yaw)+dy*math.sin(yaw)
+    lateral = -dx*math.sin(yaw)+dy*math.cos(yaw)
+    if not -25.0 <= along <= 1.1 or abs(lateral) > config['gate_half_width_m']:
+        return math.inf
+    # The small offset permits the counter to observe the crossing. Include
+    # the velocity servo's response while leaving steering and physics active.
+    distance = max(0.0, 0.1-along)
+    response = deceleration*0.06
+    return max(0.0, math.sqrt(response*response+2*deceleration*distance)-response)
+
+
 class SimulationSession:
     """Track resets, pauses and collision validity without counting laps."""
 

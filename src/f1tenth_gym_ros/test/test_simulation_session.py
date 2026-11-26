@@ -1,8 +1,34 @@
 """Lifecycle invariants required for trustworthy attempt measurement."""
 
 import unittest
+import math
 
-from f1tenth_gym_ros.simulation_session import SimulationSession
+from f1tenth_gym_ros.simulation_session import SimulationSession, finish_speed_limit
+
+
+class FinishBrakingTests(unittest.TestCase):
+    def setUp(self):
+        self.laps = {'lap_count': 9, 'target_laps': 10,
+                     'checkpoint_count': 6, 'checkpoints_passed': 6,
+                     'configuration': {'gate_x': 0.0, 'gate_y': 0.0,
+                                       'gate_yaw': 0.0, 'gate_half_width_m': 1.3}}
+
+    def test_braking_requires_final_lap_and_all_checkpoints(self):
+        for key, value in [('lap_count', 8), ('checkpoints_passed', 5)]:
+            self.assertTrue(math.isinf(finish_speed_limit(
+                [-2.0, 0.0], {**self.laps, key: value})))
+        self.assertTrue(math.isinf(finish_speed_limit([-2.0, 0.0], {})))
+
+    def test_nearby_track_section_does_not_trigger_braking(self):
+        self.assertTrue(math.isinf(finish_speed_limit([-2.0, 2.0], self.laps)))
+        self.assertTrue(math.isinf(finish_speed_limit([-30.0, 0.0], self.laps)))
+
+    def test_speed_decreases_to_stop_beyond_gate(self):
+        limits = [finish_speed_limit([x, 0.0], self.laps)
+                  for x in (-15.0, -5.0, -1.0, 0.0, 0.1)]
+        self.assertEqual(limits, sorted(limits, reverse=True))
+        self.assertGreater(limits[-2], 0.0)
+        self.assertEqual(limits[-1], 0.0)
 
 
 class SessionTests(unittest.TestCase):

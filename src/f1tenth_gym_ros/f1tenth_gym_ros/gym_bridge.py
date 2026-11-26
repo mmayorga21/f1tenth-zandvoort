@@ -28,7 +28,7 @@ from rosgraph_msgs.msg import Clock
 from builtin_interfaces.msg import Time
 from std_msgs.msg import Bool, String
 from std_srvs.srv import Trigger, SetBool
-from .simulation_session import SimulationSession
+from .simulation_session import SimulationSession, finish_speed_limit
 from pathlib import Path
 from datetime import datetime, timezone
 import hashlib
@@ -162,6 +162,7 @@ class GymBridge(Node):
         self.collision_pub = self.create_publisher(Bool, '/ego_racecar/collision', status_qos)
         self.event_pub = self.create_publisher(String, '/sim/events', 100)
         self.controller_metadata = None
+        self.finish_laps = {}
         self.controller_status_sub = self.create_subscription(
             String, '/controller/status', self.controller_status_callback, status_qos)
         self.laps_status_sub = self.create_subscription(
@@ -319,6 +320,7 @@ class GymBridge(Node):
 
     def reset_environment(self, poses, reason):
         self.clear_commands()
+        self.finish_laps = {}
         # Persist the old attempt with its final pose before replacing state.
         self.session.abort(reason)
         self.flush_events()
@@ -381,7 +383,14 @@ class GymBridge(Node):
 
     def laps_status_callback(self, msg):
         try:
-            if self.session.request_completion(json.loads(msg.data)):
+            laps = json.loads(msg.data)
+            identity = self.session.snapshot()
+            if (all(laps.get(key) == identity[key]
+                    for key in ('run_id', 'session_id', 'attempt_id'))
+                    and laps.get('measurement_valid') is True
+                    and laps.get('state') == 'running'):
+                self.finish_laps = laps
+            if self.session.request_completion(laps):
                 self.clear_commands()
                 self.publish_status()
         except (ValueError, TypeError, AttributeError):
@@ -418,6 +427,9 @@ class GymBridge(Node):
             self.publish_status()
         if self.session.can_step:
             actions = [[self.ego_steer, self.ego_requested_speed]]
+            if not self.session.completion_requested:
+                actions[0][1] = min(actions[0][1], finish_speed_limit(
+                    self.ego_pose, self.finish_laps))
             if self.has_opp:
                 actions.append([self.opp_steer, self.opp_requested_speed])
             self.obs, _, self.done, _ = self.env.step(np.array(actions))
