@@ -183,3 +183,9 @@ ros2 service call /controller/enable std_srvs/srv/SetBool "{data: false}"
 ```
 
 To close the programs, press `Ctrl+C` in the controller, lap tracker, and simulator terminals.
+
+## Video
+https://youtu.be/XBdR0zLEedw
+
+## Topics records
+https://drive.google.com/drive/folders/1_ivRK1a7qGIQeYciwHr9BfKTwlGFZRCi?usp=sharing
